@@ -1,0 +1,11 @@
+{
+  "name": "Chimoio AgroTrace",
+  "description": "An agricultural traceability platform for Chimoio, Mozambique, enabling farm-to-table tracking, geospatial farm mapping, and Global GAP certification management.",
+  "requestFramePermissions": [
+    "camera",
+    "geolocation"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

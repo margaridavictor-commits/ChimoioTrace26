@@ -1,0 +1,85 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 1. Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // Validation Blueprints
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'email', 'role']) &&
+             data.uid is string &&
+             data.email is string &&
+             data.role in ['farmer', 'buyer', 'certifier', 'admin'];
+    }
+
+    function isValidFarmer(data) {
+      return data.keys().hasAll(['farmerId', 'name']) &&
+             data.farmerId is string &&
+             data.name is string;
+    }
+
+    function isValidBatch(data) {
+      return data.keys().hasAll(['batchId', 'farmerId', 'cropType', 'harvestDate']) &&
+             data.batchId is string &&
+             data.farmerId is string &&
+             data.cropType is string &&
+             data.harvestDate is string;
+    }
+
+    // Connectivity test
+    match /test/connection {
+      allow get: if true;
+    }
+
+    // Users collection
+    match /users/{userId} {
+      allow get: if isSignedIn();
+      allow list: if isSignedIn() && resource.data.uid == request.auth.uid;
+      allow create: if isOwner(userId) && isValidUser(incoming());
+      allow update: if isOwner(userId) && isValidUser(incoming());
+    }
+
+    // Farmers collection
+    match /farmers/{farmerId} {
+      allow read: if true;
+      allow create, update: if isSignedIn() && (farmerId == request.auth.uid) && isValidFarmer(incoming());
+    }
+
+    // Batches collection
+    match /batches/{batchId} {
+      allow read: if true;
+      allow create: if isSignedIn() && isValidBatch(incoming()) && (incoming().farmerId == request.auth.uid);
+      allow update: if isSignedIn() && isValidBatch(incoming()) && (existing().farmerId == request.auth.uid);
+      allow delete: if isSignedIn() && existing().farmerId == request.auth.uid;
+    }
+
+    // Audit logs
+    match /audit_logs/{logId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+    }
+  }
+}

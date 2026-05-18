@@ -1,0 +1,85 @@
+{
+  "entities": {
+    "User": {
+      "title": "User Profile",
+      "description": "User account information and role",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "role": { "type": "string", "enum": ["farmer", "buyer", "certifier", "admin"] },
+        "phoneNumber": { "type": "string" },
+        "province": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "role"]
+    },
+    "Farmer": {
+      "title": "Farmer Profile",
+      "description": "Information about a specific farmer in Chimoio",
+      "type": "object",
+      "properties": {
+        "farmerId": { "type": "string" },
+        "name": { "type": "string" },
+        "location": { "type": "object" },
+        "province": { "type": "string" },
+        "certificationStatus": { "type": "string", "enum": ["none", "pending", "certified", "expired"] },
+        "gapId": { "type": "string" },
+        "photoUrl": { "type": "string" },
+        "phoneNumber": { "type": "string" }
+      },
+      "required": ["farmerId", "name"]
+    },
+    "Batch": {
+      "title": "Product Batch",
+      "description": "A specific harvest batch of agricultural product",
+      "type": "object",
+      "properties": {
+        "batchId": { "type": "string" },
+        "farmerId": { "type": "string" },
+        "cropType": { "type": "string" },
+        "harvestDate": { "type": "string", "format": "date" },
+        "quantity": { "type": "string" },
+        "location": { "type": "object" },
+        "status": { "type": "string", "enum": ["harvested", "distributing", "market", "consumed"] },
+        "certificationId": { "type": "string" },
+        "journey": { "type": "array" },
+        "qrCode": { "type": "string" }
+      },
+      "required": ["batchId", "farmerId", "cropType", "harvestDate"]
+    },
+    "AuditLog": {
+      "title": "Certification Audit",
+      "description": "Records of compliance audits for Global GAP",
+      "type": "object",
+      "properties": {
+        "logId": { "type": "string" },
+        "farmerId": { "type": "string" },
+        "certifierId": { "type": "string" },
+        "date": { "type": "string", "format": "date" },
+        "result": { "type": "string", "enum": ["pass", "fail", "needs_improvement"] },
+        "notes": { "type": "string" }
+      },
+      "required": ["logId", "farmerId", "certifierId", "date", "result"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profiles"
+    },
+    "/farmers/{farmerId}": {
+      "schema": "Farmer",
+      "description": "Farmer profiles and locations"
+    },
+    "/batches/{batchId}": {
+      "schema": "Batch",
+      "description": "Traceability batches"
+    },
+    "/audit_logs/{logId}": {
+      "schema": "AuditLog",
+      "description": "Certification audits"
+    }
+  }
+}
