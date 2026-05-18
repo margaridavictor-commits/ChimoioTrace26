@@ -1,0 +1,16 @@
+{
+  "buildCommand": "npm run build",
+  "installCommand": "npm install",
+  "framework": "vite",
+  "outputDirectory": "dist",
+  "env": {
+    "GEMINI_API_KEY": "@gemini_api_key",
+    "GOOGLE_MAPS_PLATFORM_KEY": "@google_maps_platform_key"
+  },
+  "functions": {
+    "server.ts": {
+      "runtime": "nodejs18.x",
+      "maxDuration": 60
+    }
+  }
+}
