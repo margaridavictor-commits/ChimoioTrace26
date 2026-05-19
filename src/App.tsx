@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -7,37 +7,34 @@ import {
   QrCode, 
   ShieldCheck, 
   History, 
-  ChevronRight, 
   User, 
   Camera,
   Search,
-  LayoutDashboard,
   ChevronLeft,
-  PieChart,
-  BarChart,
   AlertCircle,
   Phone,
   Lock,
   ArrowRight,
   UserPlus,
+  X,
   LocateFixed,
-  Navigation,
-  X
+  Mail
 } from 'lucide-react';
 import { cn, formatDate } from './lib/utils';
 import { auth, db } from './lib/firebase';
+import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
+import { Html5QrcodeScanner } from 'html5-qrcode';
 import { 
   onAuthStateChanged, 
   signInWithPopup, 
   GoogleAuthProvider, 
-  signOut, 
-  createUserWithEmailAndPassword, 
-  signInWithEmailAndPassword,
-  RecaptchaVerifier,
-  signInWithPhoneNumber,
-  ConfirmationResult
+  signOut,
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword
 } from 'firebase/auth';
-import { doc, getDoc, setDoc, collection, query, where, onSnapshot } from 'firebase/firestore';
+import { doc, getDoc, setDoc, collection, query, where, onSnapshot, updateDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import type { UserProfile, Batch, Farmer } from './types';
 import { getDocFromServer } from 'firebase/firestore';
@@ -131,11 +128,6 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
   // We no longer throw here to prevent app crash, unless necessary
 }
 
-// Map Components
-import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
-import L from 'leaflet';
-import { Html5QrcodeScanner } from 'html5-qrcode';
-
 // Fix for default leaflet icon
 const defaultIcon = L.icon({
   iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
@@ -147,15 +139,32 @@ const defaultIcon = L.icon({
 function Data4MozLogo({ className = "w-8 h-8" }: { className?: string }) {
   return (
     <svg viewBox="0 0 100 100" className={className} fill="none" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="50" cy="50" r="48" stroke="#333" strokeWidth="2"/>
-      <path d="M50 50 L50 2 A48 48 0 0 1 98 50 Z" fill="#f59e0b"/>
-      <path d="M50 50 L98 50 A48 48 0 0 1 50 98 Z" fill="#b91c1c"/>
-      <path d="M50 50 L50 98 A48 48 0 0 0 2 50 A48 48 0 0 0 50 2 Z" fill="#10b981"/>
-      <circle cx="50" cy="50" r="25" fill="white" stroke="#333" strokeWidth="2"/>
-      <rect x="40" y="55" width="8" height="10" fill="#111" rx="1"/>
-      <rect x="52" y="45" width="8" height="20" fill="#10b981" rx="1"/>
-      <rect x="64" y="35" width="8" height="30" fill="#f59e0b" rx="1"/>
+      <circle cx="50" cy="50" r="48" stroke="#334155" strokeWidth="4"/>
+      <path d="M50 50 L50 6 A44 44 0 0 0 6 50 Z" fill="#059669" /> {/* Teal top-left */}
+      <path d="M50 50 L6 50 A44 44 0 0 0 60 92 Z" fill="#dc2626" /> {/* Red bottom */}
+      <path d="M50 50 L60 92 A44 44 0 0 0 50 6 Z" fill="#f59e0b" /> {/* Yellow right */}
+      <circle cx="50" cy="50" r="28" fill="white" stroke="#334155" strokeWidth="3"/>
+      <rect x="36" y="52" width="8" height="10" fill="#1e293b" rx="1"/>
+      <rect x="48" y="44" width="8" height="18" fill="#10b981" rx="1"/>
+      <rect x="60" y="36" width="8" height="26" fill="#f59e0b" rx="1"/>
     </svg>
+  );
+}
+
+function NavTab({ active, icon: Icon, label, onClick, disabled = false }: { active: boolean, icon: any, label: string, onClick: () => void, disabled?: boolean }) {
+  return (
+    <button 
+      onClick={onClick}
+      disabled={disabled}
+      className={cn(
+        "flex flex-col items-center gap-1 transition-all duration-300",
+        active ? "text-emerald-400 scale-110" : "text-white/40 hover:text-white/60",
+        disabled && "opacity-20 cursor-not-allowed"
+      )}
+    >
+      <Icon className={cn("w-6 h-6", active && "stroke-[2.5px]")} />
+      <span className="text-[10px] font-bold uppercase tracking-tighter">{label}</span>
+    </button>
   );
 }
 
@@ -166,10 +175,24 @@ export default function App() {
   const [subTab, setSubTab] = useState<'home' | 'map' | 'scan' | 'trace'>('home');
   const [view, setView] = useState<'landing' | 'app'>('landing');
   const [authMode, setAuthMode] = useState<'options' | 'login' | 'register'>('options');
-  const [lang, setLang] = useState<'pt' | 'en'>('pt');
+  const [lang] = useState<'pt' | 'en'>('pt');
   const [scannedBatch, setScannedBatch] = useState<Batch | null>(null);
 
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   useEffect(() => {
     const handleToast = (e: any) => {
@@ -198,12 +221,11 @@ export default function App() {
     return onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
         try {
-          const userDocPath = `users/${firebaseUser.uid}`;
           let userDoc;
           try {
             userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
           } catch (e) {
-            handleFirestoreError(e, OperationType.GET, userDocPath);
+            handleFirestoreError(e, OperationType.GET, `users/${firebaseUser.uid}`);
           }
 
           if (userDoc?.exists()) {
@@ -214,12 +236,13 @@ export default function App() {
             const newUser: UserProfile = {
               uid: firebaseUser.uid,
               email: firebaseUser.email || '',
-              displayName: firebaseUser.displayName || 'Usuário',
+              displayName: firebaseUser.displayName || firebaseUser.phoneNumber || 'Usuário',
               role: 'farmer',
               createdAt: new Date().toISOString()
             };
             
             try {
+              // Create user doc
               await setDoc(doc(db, 'users', firebaseUser.uid), newUser);
               
               // Ensure farmer doc exists for this user
@@ -228,12 +251,13 @@ export default function App() {
                 farmerId: firebaseUser.uid,
                 name: newUser.displayName,
                 location: { lat: -19.116, lng: 33.483 },
+                province: '',
                 certificationStatus: 'pending',
                 phoneNumber: firebaseUser.phoneNumber || '',
                 photoUrl: ''
               }, { merge: true });
             } catch (e) {
-              handleFirestoreError(e, OperationType.WRITE, 'users/farmers_init');
+              handleFirestoreError(e, OperationType.WRITE, `users/${firebaseUser.uid} (init)`);
             }
 
             setUser(newUser);
@@ -269,14 +293,14 @@ export default function App() {
     setActiveTab('farmer');
   };
 
-  const registerWithPhone = async (data: { name: string, phone: string, location: string }) => {
+  const handleRegister = async (data: any) => {
     try {
-      const firebaseUser = auth.currentUser;
-      if (!firebaseUser) return;
+      const userCredential = await createUserWithEmailAndPassword(auth, data.email, data.password);
+      const firebaseUser = userCredential.user;
 
       const newUser: UserProfile = {
         uid: firebaseUser.uid,
-        email: firebaseUser.email || `${data.phone.replace(/\s+/g, '')}@agrotrace.com`,
+        email: data.email,
         displayName: data.name,
         role: 'farmer',
         phoneNumber: data.phone,
@@ -304,7 +328,27 @@ export default function App() {
       showToast('Bem-vindo à plataforma AgroTrace!', 'success');
     } catch (error: any) {
       console.error('Registration error:', error);
-      showToast('Erro ao finalizar o seu registo como produtor.', 'error');
+      let message = 'Erro ao realizar o registo.';
+      if (error.code === 'auth/email-already-in-use') message = 'Este email já está em uso.';
+      if (error.code === 'auth/weak-password') message = 'A senha deve ter pelo menos 6 caracteres.';
+      if (error.code === 'auth/invalid-email') message = 'Email inválido.';
+      showToast(message, 'error');
+      throw error;
+    }
+  };
+
+  const handleEmailLogin = async (data: any) => {
+    try {
+      await signInWithEmailAndPassword(auth, data.email, data.password);
+      setView('app');
+      setActiveTab('farmer');
+    } catch (error: any) {
+      console.error('Login error:', error);
+      let message = 'E-mail ou senha incorretos.';
+      if (error.code === 'auth/user-not-found') message = 'Usuário não encontrado.';
+      if (error.code === 'auth/wrong-password') message = 'Senha incorreta.';
+      showToast(message, 'error');
+      throw error;
     }
   };
 
@@ -327,247 +371,251 @@ export default function App() {
 
   if (view === 'landing') {
     return (
-      <div className="min-h-screen bg-white flex flex-col items-center overflow-hidden">
-        {/* Header Image with Curve */}
-        <div className="relative w-full h-[55vh] overflow-hidden">
-          <img 
-            src="https://images.unsplash.com/photo-1592982537447-7440770cbfc9?auto=format&fit=crop&q=80&w=1200" 
-            alt="Farmer" 
-            className="w-full h-full object-cover"
-          />
-          <div className="absolute inset-0 bg-black/10"></div>
-          
-          {/* Language Toggle */}
-          <div className="absolute top-6 right-6 flex bg-white/20 backdrop-blur-md rounded-lg p-1 border border-white/30 text-xs font-bold text-white">
-             <button 
-              onClick={() => setLang('pt')}
-              className={cn("px-3 py-1 rounded-md transition-all", lang === 'pt' ? "bg-emerald-600 text-white" : "hover:bg-white/10")}
-             >
-               PT
-             </button>
-             <button 
-              onClick={() => setLang('en')}
-              className={cn("px-3 py-1 rounded-md transition-all", lang === 'en' ? "bg-emerald-600 text-white" : "hover:bg-white/10")}
-             >
-               EN
-             </button>
+      <div className="h-screen w-full flex items-center justify-center bg-[#FDFCF9] md:bg-gray-100 p-0 md:p-8">
+        <div className="w-full max-w-md h-full md:h-[844px] bg-white md:rounded-[3rem] overflow-hidden relative flex flex-col shadow-2xl">
+          {/* Background Image */}
+          <div className="absolute inset-0 z-0">
+             <img 
+              src="https://images.unsplash.com/photo-1592982537447-7440770cbfc9?auto=format&fit=crop&q=80&w=1200" 
+              alt="Background" 
+              className="w-full h-full object-cover"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-emerald-950 via-emerald-900/40 to-transparent"></div>
           </div>
 
-          <div className="absolute bottom-[-1px] left-0 w-full">
-            <svg viewBox="0 0 1440 320" className="w-full h-auto translate-y-1">
-              <path fill="#ffffff" fillOpacity="1" d="M0,224L80,218.7C160,213,320,203,480,213.3C640,224,800,256,960,256C1120,256,1280,224,1360,208L1440,192L1440,320L1360,320C1280,320,1120,320,960,320C800,320,640,320,480,320C320,320,160,320,80,320L0,320Z"></path>
-            </svg>
-          </div>
-        </div>
-
-        {/* Content */}
-        <div className="flex-1 w-full max-w-md px-8 flex flex-col items-center justify-center text-center -mt-12 z-10 relative">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="space-y-4 mb-12 flex flex-col items-center"
-          >
-            <div className="w-20 h-20 bg-white rounded-full flex items-center justify-center mb-4 shadow-xl border border-gray-100 p-2">
-               <Data4MozLogo className="w-16 h-16" />
-            </div>
-            <div>
-              <h1 className="text-5xl font-bold text-emerald-700 tracking-tight">AgroTrace</h1>
-              <p className="text-gray-500 text-sm font-medium leading-tight">
-                {lang === 'pt' 
-                  ? "Rastreabilidade de alimentos: do campo à sua mesa"
-                  : "Food traceability: from field to your table"}
-              </p>
-            </div>
-          </motion.div>
-
-          {authMode === 'options' ? (
-            <motion.div 
-               initial={{ opacity: 0, y: 20 }}
-               animate={{ opacity: 1, y: 0 }}
-               transition={{ delay: 0.1 }}
-               className="w-full space-y-4"
+          <div className="flex-1 flex flex-col justify-end p-8 pb-12 z-10 space-y-8">
+            <motion.div
+              initial={{ opacity: 0, y: 30 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="space-y-4"
             >
-              <button 
-                onClick={() => { setView('app'); setActiveTab('consumer'); }}
-                className="w-full bg-emerald-600 text-white py-4 px-6 rounded-2xl font-bold shadow-xl shadow-emerald-600/20 active:scale-95 transition-transform"
-              >
-                {lang === 'pt' ? "SOU CONSUMIDOR" : "I AM A CONSUMER"}
-              </button>
-              <button 
-                onClick={() => { setAuthMode('login'); }}
-                className="w-full bg-white text-emerald-600 py-4 px-6 rounded-2xl font-bold border-2 border-emerald-600 active:scale-95 transition-transform"
-              >
-                {lang === 'pt' ? "SOU PRODUTOR" : "I AM A FARMER"}
-              </button>
-            </motion.div>
-          ) : authMode === 'login' ? (
-            <LoginForm 
-              lang={lang} 
-              onBack={() => setAuthMode('options')} 
-              onLogin={loginWithPhone} 
-              onGoogle={loginWithGoogle}
-              onGoRegister={() => setAuthMode('register')}
-            />
-          ) : (
-            <RegisterForm 
-              lang={lang} 
-              onBack={() => setAuthMode('login')} 
-              onRegister={registerWithPhone} 
-            />
-          )}
-
-          <div className="mt-16 flex flex-col items-center gap-3">
-            <div className="flex items-center gap-3 p-4 bg-white rounded-2xl shadow-xl border border-gray-100">
-              <Data4MozLogo className="w-10 h-10" />
-              <div className="text-left leading-none">
-                <p className="text-lg font-black tracking-tighter uppercase text-emerald-900 leading-none">Data4Moz</p>
-                <p className="text-[10px] text-emerald-600/60 font-bold uppercase tracking-[0.2em] mt-1">Intelligence</p>
+              <div className="flex items-center gap-4">
+                <Data4MozLogo className="w-16 h-16 drop-shadow-xl" />
               </div>
+              <div className="space-y-2">
+                <h1 className="text-5xl font-bold text-white tracking-tight">AgroTrace</h1>
+                <p className="text-emerald-100/80 text-lg font-medium leading-tight">
+                  A jornada dos seus alimentos, <br />
+                  <span className="text-white italic">transparente e real.</span>
+                </p>
+              </div>
+            </motion.div>
+
+            {authMode === 'options' ? (
+              <motion.div 
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2 }}
+                className="space-y-4"
+              >
+                <button 
+                  onClick={() => { setView('app'); setActiveTab('consumer'); }}
+                  className="w-full bg-white text-emerald-900 py-5 rounded-[2rem] font-bold text-sm uppercase tracking-widest shadow-xl active:scale-95 transition-transform"
+                >
+                  Continuar como Consumidor
+                </button>
+                <button 
+                  onClick={() => setAuthMode('login')}
+                  className="w-full bg-emerald-600/30 backdrop-blur-md text-white py-5 rounded-[2rem] font-bold text-sm uppercase tracking-widest border border-white/20 active:scale-95 transition-transform"
+                >
+                  Portal do Produtor
+                </button>
+              </motion.div>
+            ) : authMode === 'login' ? (
+              <motion.div 
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="bg-white rounded-[2.5rem] p-8 shadow-2xl"
+              >
+                <LoginForm 
+                  lang={lang} 
+                  onBack={() => setAuthMode('options')} 
+                  onLogin={loginWithPhone} 
+                  onGoogle={loginWithGoogle}
+                  onGoRegister={() => setAuthMode('register')}
+                  onEmailLogin={handleEmailLogin}
+                />
+              </motion.div>
+            ) : (
+              <motion.div 
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="bg-white rounded-[2.5rem] p-8 shadow-2xl"
+              >
+                <RegisterForm 
+                  lang={lang} 
+                  onBack={() => setAuthMode('login')} 
+                  onRegister={handleRegister} 
+                />
+              </motion.div>
+            )}
+
+            <div className="flex justify-center items-center gap-4 opacity-70">
+               <div className="h-px flex-1 bg-white/20"></div>
+               <div className="flex items-center gap-2">
+                 <Data4MozLogo className="w-5 h-5" />
+                 <span className="text-[10px] text-white font-bold uppercase tracking-widest italic">Powered by Data4Moz</span>
+               </div>
+               <div className="h-px flex-1 bg-white/20"></div>
             </div>
-            <span className="text-[10px] font-bold tracking-[0.2em] uppercase text-gray-400">Powered by Data4Moz</span>
           </div>
         </div>
-        
-        <div className="h-12 w-full bg-white"></div>
       </div>
     );
   }
 
   return (
     <>
-      <main className="min-h-screen bg-[#FDFCF9] text-[#1A1A1A] font-sans">
-      {/* Header */}
-      <header className="border-b border-[#E5E2D9] px-6 py-4 flex items-center justify-between sticky top-0 bg-[#FDFCF9]/80 backdrop-blur-md z-50">
-        <div className="flex items-center gap-4">
-          <button 
-            onClick={() => setView('landing')}
-            className="p-2 hover:bg-emerald-50 rounded-full text-emerald-600 transition-colors"
-            title="Voltar"
-          >
-            <ChevronLeft className="w-6 h-6" />
-          </button>
-          <div className="flex items-center gap-2 border-l border-gray-200 pl-4">
-            <div className="bg-emerald-600 p-1.5 rounded-lg">
-              <Leaf className="w-5 h-5 text-white" />
-            </div>
-            <h1 className="font-semibold text-lg tracking-tight">AgroTrace</h1>
+      {/* Connection Status Badge */}
+      {!isOnline && (
+        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 pointer-events-none">
+          <div className="bg-amber-500 text-white px-4 py-2 rounded-full text-[10px] font-bold uppercase tracking-widest shadow-lg flex items-center gap-2 animate-bounce">
+            <div className="w-2 h-2 bg-white rounded-full animate-pulse" />
+            Modo Offline
           </div>
         </div>
-        
-        <div className="hidden md:flex bg-gray-100 p-1 rounded-xl">
-          <button 
-            onClick={() => setActiveTab('consumer')}
-            className={cn("px-4 py-1.5 rounded-lg text-sm font-medium transition-all", activeTab === 'consumer' ? "bg-white shadow-sm text-emerald-700" : "text-gray-500")}
-          >
-            Consumidor
-          </button>
-          <button 
-            onClick={() => setActiveTab('farmer')}
-            className={cn("px-4 py-1.5 rounded-lg text-sm font-medium transition-all", activeTab === 'farmer' ? "bg-white shadow-sm text-emerald-700" : "text-gray-500")}
-          >
-            Produtor
-          </button>
-        </div>
+      )}
 
-        <div className="flex items-center gap-4">
-          {!user && activeTab === 'farmer' ? (
-            <button 
-              onClick={() => setView('landing')}
-              className="bg-[#1A1A1A] text-white px-4 py-2 rounded-full text-sm font-medium hover:bg-emerald-800 transition-colors"
-            >
-              Portal do Produtor
-            </button>
-          ) : user ? (
-            <div className="flex items-center gap-3">
-              <div className="text-right hidden sm:block">
-                <p className="text-sm font-medium">{user.displayName}</p>
-                <p className="text-[10px] text-emerald-600 uppercase tracking-widest font-bold">{user.role}</p>
+      <div className="min-h-screen bg-[#FDFCF9] flex items-center justify-center p-0 md:p-8">
+        {/* Mobile-first Container (Phone Frame on Desktop) */}
+        <div className="w-full max-w-md h-screen md:h-[844px] bg-white md:rounded-[3rem] md:shadow-[0_0_0_12px_#1a1a1a,0_20px_50px_rgba(0,0,0,0.2)] overflow-hidden relative flex flex-col border-x border-[#E5E2D9] md:border-none">
+          
+          {/* Status Bar Mock (iOS style) - Only visible on desktop mockup */}
+          <div className="h-12 w-full bg-white/80 backdrop-blur-md items-center justify-between px-8 z-50 sticky top-0 shrink-0 select-none hidden md:flex">
+            <span className="text-xs font-bold">9:41</span>
+            <div className="flex gap-1.5 items-center">
+              <div className="w-4 h-2 bg-black/20 rounded-full"></div>
+              <div className="w-2 h-2 bg-black/20 rounded-full"></div>
+              <div className="w-5 h-2.5 border border-black/20 rounded-sm relative">
+                <div className="absolute right-0.5 top-0.5 bottom-0.5 left-0.5 bg-black rounded-sm"></div>
               </div>
-              <button 
-                onClick={logout}
-                className="w-10 h-10 rounded-full border border-[#E5E2D9] overflow-hidden flex items-center justify-center hover:bg-red-50 transition-colors group relative"
-                title="Sair"
-              >
-                {user.photoUrl ? (
-                  <img src={user.photoUrl} className="w-full h-full object-cover" alt="Profile" />
-                ) : (
-                  <div className="bg-emerald-50 w-full h-full flex items-center justify-center">
-                    <User className="w-5 h-5 text-emerald-600" />
+            </div>
+          </div>
+
+          <main className="flex-1 overflow-y-auto bg-[#FDFCF9] relative pb-32 invisible-scrollbar">
+            {/* Header */}
+            <header className="px-6 py-5 flex items-center justify-between sticky top-0 bg-[#FDFCF9]/80 backdrop-blur-md z-40 relative">
+              <div className="flex items-center gap-3 min-h-[40px]">
+                <AnimatePresence mode="wait">
+                  {(activeTab === 'farmer' || (activeTab === 'consumer' && subTab !== 'home')) ? (
+                    <motion.button 
+                      key="back-button"
+                      initial={{ opacity: 0, x: -10 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: -10 }}
+                      onClick={() => {
+                        if (activeTab === 'consumer' && subTab !== 'home') {
+                          setSubTab('home');
+                        } else {
+                          setView('landing');
+                        }
+                      }}
+                      className="absolute left-4 top-1/2 -translate-y-1/2 p-2 hover:bg-emerald-50 rounded-full text-emerald-600 transition-colors z-50"
+                    >
+                      <ChevronLeft className="w-5 h-5" />
+                    </motion.button>
+                  ) : null}
+                </AnimatePresence>
+                
+                <motion.div 
+                  layout 
+                  className={cn(
+                    "transition-all duration-300",
+                    (activeTab === 'farmer' || (activeTab === 'consumer' && subTab !== 'home')) ? "pl-10" : "pl-0"
+                  )}
+                >
+                  <div className="flex items-center gap-2">
+                    <Data4MozLogo className="w-4 h-4 mt-0.5" />
+                    <h1 className="font-bold text-lg tracking-tight leading-none text-emerald-900">
+                      {activeTab === 'consumer' ? (subTab === 'home' ? 'AgroTrace' : subTab === 'map' ? 'Explorar' : subTab === 'scan' ? 'Scanner' : 'Rastreio') : 'Portal Produtor'}
+                    </h1>
                   </div>
-                )}
-                <div className="absolute inset-0 bg-red-600/10 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                   <X className="w-4 h-4 text-red-600 translate-y-4 group-hover:translate-y-0 transition-transform" />
-                </div>
-              </button>
-              <div className="w-px h-6 bg-gray-200 mx-1"></div>
-              <div className="flex items-center gap-2">
-                <Data4MozLogo className="w-7 h-7" />
-                <span className="text-[10px] font-black tracking-tighter uppercase text-emerald-900 hidden lg:block">Data4Moz</span>
-              </div>
-            </div>
-          ) : (
-            <div className="flex items-center gap-2 pr-2">
-              <Data4MozLogo className="w-6 h-6" />
-              <span className="text-[10px] font-black tracking-tighter uppercase text-emerald-900">Data4Moz</span>
-            </div>
-          )}
-        </div>
-      </header>
-
-      {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-6 py-8 pb-32">
-        <AnimatePresence mode="wait">
-          {activeTab === 'consumer' ? (
-            <div key="consumer" className="space-y-8">
-              <div className="flex gap-4 border-b border-gray-100 overflow-x-auto pb-px">
-                <button 
-                  onClick={() => setSubTab('home')}
-                  className={cn("pb-2 px-1 text-sm font-bold border-b-2 transition-colors whitespace-nowrap", subTab === 'home' ? "border-emerald-600 text-emerald-900" : "border-transparent text-gray-400")}
-                >
-                  Início
-                </button>
-                <button 
-                  onClick={() => setSubTab('map')}
-                  className={cn("pb-2 px-1 text-sm font-bold border-b-2 transition-colors whitespace-nowrap", subTab === 'map' ? "border-emerald-600 text-emerald-900" : "border-transparent text-gray-400")}
-                >
-                  Mapa de Origem
-                </button>
-                <button 
-                  onClick={() => setSubTab('scan')}
-                  className={cn("pb-2 px-1 text-sm font-bold border-b-2 transition-colors whitespace-nowrap", subTab === 'scan' ? "border-emerald-600 text-emerald-900" : "border-transparent text-gray-400")}
-                >
-                  Digitalizar QR
-                </button>
-                {scannedBatch && (
-                   <button 
-                    onClick={() => setSubTab('trace')}
-                    className={cn("pb-2 px-1 text-sm font-bold border-b-2 transition-colors whitespace-nowrap", subTab === 'trace' ? "border-emerald-600 text-emerald-900" : "border-transparent text-gray-400")}
-                  >
-                    Rastreamento
-                  </button>
-                )}
+                  <span className="text-[10px] font-bold text-emerald-600/60 uppercase tracking-widest leading-none">Chimoio, MOZ</span>
+                </motion.div>
               </div>
               
-              {subTab === 'home' && <HomeView onExplore={() => setSubTab('map')} onScan={() => setSubTab('scan')} />}
-              {subTab === 'map' && <GlobalMapView onSelectBatch={(b) => { setScannedBatch(b); setSubTab('trace'); }} />}
-              {subTab === 'scan' && <ScanView onResult={(batch) => { setScannedBatch(batch); setSubTab('trace'); }} />}
-              {subTab === 'trace' && <TraceView scannedBatch={scannedBatch} />}
+              <div className="flex items-center gap-3">
+                <button 
+                  onClick={logout}
+                  className="w-10 h-10 rounded-2xl bg-white border border-[#E5E2D9] overflow-hidden flex items-center justify-center hover:bg-red-50 hover:border-red-200 transition-colors active:scale-95 group"
+                  title="Sair"
+                >
+                  {user?.photoUrl ? (
+                    <img src={user.photoUrl} className="w-full h-full object-cover group-hover:opacity-20" alt="Profile" />
+                  ) : (
+                    <User className="w-5 h-5 text-emerald-600 group-hover:text-red-600" />
+                  )}
+                  <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 bg-red-600/10">
+                    <X className="w-5 h-5 text-red-600" />
+                  </div>
+                </button>
+              </div>
+            </header>
+
+            {/* Content Area */}
+            <div className="px-6">
+              <AnimatePresence mode="wait">
+                {activeTab === 'consumer' ? (
+                  <div key="consumer" className="space-y-6">
+                    {subTab === 'home' && <HomeView onExplore={() => setSubTab('map')} onScan={() => setSubTab('scan')} />}
+                    {subTab === 'map' && <GlobalMapView onSelectBatch={(b) => { setScannedBatch(b); setSubTab('trace'); }} />}
+                    {subTab === 'scan' && <ScanView onResult={(batch) => { setScannedBatch(batch); setSubTab('trace'); }} />}
+                    {subTab === 'trace' && <TraceView scannedBatch={scannedBatch} />}
+                  </div>
+                ) : (
+                  <FarmerPortal key="farmer" user={user} login={loginWithGoogle} />
+                )}
+              </AnimatePresence>
             </div>
-          ) : (
-            <FarmerPortal key="farmer" user={user} login={loginWithGoogle} />
-          )}
-        </AnimatePresence>
+          </main>
+
+          {/* iOS Style Bottom Home Bar - Desktop Only */}
+          <div className="absolute bottom-1 w-32 h-1.5 bg-black/10 rounded-full left-1/2 -translate-x-1/2 z-[60] pointer-events-none hidden md:block"></div>
+
+          {/* Bottom Navigation */}
+          <nav className="absolute bottom-6 left-6 right-6 bg-emerald-950/95 backdrop-blur-xl rounded-[2.5rem] p-4 flex items-center justify-between shadow-2xl z-50 border border-white/10">
+            <NavTab 
+              active={activeTab === 'consumer' && subTab === 'home'} 
+              icon={Search} 
+              label="Início"
+              onClick={() => { setActiveTab('consumer'); setSubTab('home'); }} 
+            />
+            <NavTab 
+              active={activeTab === 'consumer' && subTab === 'map'} 
+              icon={MapPin} 
+              label="Mapa"
+              onClick={() => { setActiveTab('consumer'); setSubTab('map'); }} 
+            />
+            
+            {/* Central Primary Action */}
+            <div className="relative">
+              <button 
+                onClick={() => { setActiveTab('consumer'); setSubTab('scan'); }}
+                className="w-16 h-16 bg-emerald-500 rounded-3xl flex items-center justify-center -mt-12 shadow-xl shadow-emerald-500/30 border-[6px] border-[#FDFCF9] group active:scale-90 transition-transform"
+              >
+                <QrCode className="w-8 h-8 text-white group-hover:rotate-12 transition-transform" />
+              </button>
+            </div>
+
+            <NavTab 
+              active={activeTab === 'farmer'} 
+              icon={ShieldCheck} 
+              label="Painel"
+              onClick={() => setActiveTab('farmer')} 
+            />
+            <NavTab 
+              active={activeTab === 'consumer' && subTab === 'trace' && !!scannedBatch} 
+              icon={History} 
+              label="Rastro"
+              disabled={!scannedBatch}
+              onClick={() => { setActiveTab('consumer'); setSubTab('trace'); }} 
+            />
+          </nav>
+        </div>
       </div>
 
-      {/* Mobile Navigation */}
-      <nav className="md:hidden fixed bottom-6 left-1/2 -translate-x-1/2 bg-[#1A1A1A] text-white px-6 py-3 rounded-2xl flex items-center gap-8 shadow-2xl z-50 border border-white/10">
-        <NavButton active={activeTab === 'consumer'} icon={Search} onClick={() => setActiveTab('consumer')} />
-        <NavButton active={activeTab === 'farmer'} icon={ShieldCheck} onClick={() => setActiveTab('farmer')} />
-      </nav>
-      </main>
-
       {/* Notifications Portal */}
-      <div className="fixed bottom-24 right-6 left-6 md:left-auto md:w-80 flex flex-col gap-3 z-[100] pointer-events-none">
+      <div className="fixed top-8 right-6 left-6 md:left-auto md:w-80 flex flex-col gap-3 z-[100] pointer-events-none">
         <AnimatePresence>
           {toasts.map((toast) => (
             <motion.div
@@ -619,78 +667,77 @@ function HomeView({ onExplore, onScan }: { onExplore: () => void, onScan: () => 
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -20 }}
-      className="space-y-12"
+      className="space-y-8"
     >
-      <section className="grid lg:grid-cols-2 gap-12 items-center">
-        <div className="space-y-6">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100 italic text-sm">
-            <ShieldCheck className="w-4 h-4" /> Global GAP Certified Traceability
-          </div>
-          <h2 className="text-4xl sm:text-5xl md:text-6xl font-serif font-light leading-tight">
-            Transparência do <span className="italic">Campo</span> à <span className="font-bold text-emerald-900 underline decoration-emerald-200">Mesa</span>.
-          </h2>
-          <p className="text-base sm:text-lg text-gray-600 max-w-lg leading-relaxed">
-            Plataforma digital para rastrear a origem, qualidade e jornada dos produtos agrícolas de Chimoio, Moçambique.
-          </p>
-          <div className="flex flex-col sm:flex-row gap-4">
-            <button 
-              onClick={onScan}
-              className="w-full sm:w-auto bg-emerald-600 text-white px-8 py-4 rounded-2xl font-medium shadow-lg shadow-emerald-600/20 hover:scale-[1.02] transition-transform flex items-center justify-center gap-2"
-            >
-              <QrCode className="w-5 h-5" /> Digitalizar Agora
-            </button>
-            <button 
-              onClick={onExplore}
-              className="w-full sm:w-auto bg-white border border-[#E5E2D9] px-8 py-4 rounded-2xl font-medium hover:bg-gray-50 transition-colors"
-            >
-              Explorar Mapa
-            </button>
-          </div>
-        </div>
-        <div className="relative group">
-          <div className="absolute inset-0 bg-emerald-600 rounded-[2.5rem] rotate-3 opacity-10 group-hover:rotate-1 transition-transform duration-500"></div>
-          <img 
-            src="https://images.unsplash.com/photo-1592982537447-7440770cbfc9?auto=format&fit=crop&q=80&w=1200" 
-            alt="Agriculture Chimoio" 
-            className="rounded-[2.5rem] shadow-2xl relative z-10 w-full h-[300px] sm:h-[400px] md:h-[500px] object-cover -rotate-1 group-hover:rotate-0 transition-transform duration-500"
-          />
+      {/* Hero Welcome */}
+      <section className="space-y-2">
+        <h2 className="text-3xl font-bold text-emerald-950 tracking-tight leading-tight">
+          Bem-vindo ao <br />
+          <span className="text-emerald-600">Futuro do Campo.</span>
+        </h2>
+        <p className="text-sm text-gray-500 font-medium">Rastreabilidade real de Chimoio para si.</p>
+      </section>
+
+      {/* Main Feature Card */}
+      <section className="relative overflow-hidden group">
+        <div className="absolute inset-0 bg-gradient-to-t from-emerald-950/80 to-transparent z-10 rounded-[2.5rem]"></div>
+        <img 
+          src="https://images.unsplash.com/photo-1592982537447-7440770cbfc9?auto=format&fit=crop&q=80&w=1200" 
+          alt="Agriculture" 
+          className="w-full h-80 object-cover rounded-[2.5rem] group-hover:scale-105 transition-transform duration-700"
+        />
+        <div className="absolute bottom-8 left-8 right-8 z-20 space-y-4">
+           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/30 backdrop-blur-md text-white border border-white/20 text-[10px] font-bold uppercase tracking-widest">
+             <ShieldCheck className="w-3 h-3" /> Global GAP Certified
+           </div>
+           <h3 className="text-2xl font-bold text-white leading-tight">Manga de Exportação <br /> Colheita Maio 2024</h3>
+           <button 
+            onClick={onExplore}
+            className="bg-white text-emerald-950 px-6 py-3 rounded-2xl font-bold text-xs uppercase tracking-widest active:scale-95 transition-transform"
+           >
+             Ver todos os produtores
+           </button>
         </div>
       </section>
 
-      <section className="grid md:grid-cols-3 gap-6 sm:gap-8">
-        <StatCard 
-          icon={Leaf} 
-          title="Produtores Locais" 
-          value="150+" 
-          subtitle="Registados em Chimoio" 
-        />
-        <StatCard 
-          icon={History} 
-          title="Lotes Rastreados" 
-          value="4,200" 
-          subtitle="Nas últimas colheitas" 
-        />
-        <StatCard 
-          icon={ShieldCheck} 
-          title="Certificações" 
-          value="98%" 
-          subtitle="Taxa de conformidade GAP" 
-        />
+      {/* Stats Quick Grid */}
+      <section className="grid grid-cols-2 gap-4">
+        <div className="bg-white p-6 rounded-[2rem] border border-[#E5E2D9] shadow-sm">
+          <div className="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center mb-4">
+            <Leaf className="w-5 h-5 text-emerald-600" />
+          </div>
+          <p className="text-[10px] uppercase font-black text-gray-400 tracking-tighter">Produtores</p>
+          <h4 className="text-2xl font-bold text-emerald-950">150+</h4>
+        </div>
+        <div className="bg-white p-6 rounded-[2rem] border border-[#E5E2D9] shadow-sm">
+          <div className="w-10 h-10 bg-amber-50 rounded-xl flex items-center justify-center mb-4">
+            <QrCode className="w-5 h-5 text-amber-600" />
+          </div>
+          <p className="text-[10px] uppercase font-black text-gray-400 tracking-tighter">Lotes</p>
+          <h4 className="text-2xl font-bold text-emerald-950">4.2K</h4>
+        </div>
       </section>
+
+      {/* Categories / Quick Picks */}
+      <section className="space-y-4">
+        <div className="flex items-center justify-between">
+           <h4 className="font-bold text-emerald-950">Categorias em Destaque</h4>
+           <button className="text-xs font-bold text-emerald-600 uppercase">Ver tudo</button>
+        </div>
+        <div className="grid grid-cols-3 gap-3">
+          {['Milho', 'Soja', 'Frutas'].map(cat => (
+            <button key={cat} className="flex flex-col items-center gap-3 p-4 bg-white rounded-[2rem] border border-[#E5E2D9] active:scale-95 transition-all">
+              <div className="w-12 h-12 bg-gray-50 rounded-full flex items-center justify-center border border-gray-100">
+                <Leaf className="w-6 h-6 text-emerald-500" />
+              </div>
+              <span className="text-xs font-bold">{cat}</span>
+            </button>
+          ))}
+        </div>
+      </section>
+      
+      <div className="h-12"></div>
     </motion.div>
-  );
-}
-
-function StatCard({ icon: Icon, title, value, subtitle }: any) {
-  return (
-    <div className="bg-white p-6 sm:p-8 rounded-3xl border border-[#E5E2D9] hover:border-emerald-200 transition-colors shadow-sm group">
-      <div className="w-12 h-12 bg-emerald-50 rounded-2xl flex items-center justify-center mb-6 group-hover:bg-emerald-600 transition-colors">
-        <Icon className="w-6 h-6 text-emerald-600 group-hover:text-white transition-colors" />
-      </div>
-      <p className="text-[10px] sm:text-xs uppercase tracking-widest font-bold text-gray-400 mb-2">{title}</p>
-      <h3 className="text-3xl sm:text-4xl font-bold mb-2">{value}</h3>
-      <p className="text-sm text-gray-500 font-medium">{subtitle}</p>
-    </div>
   );
 }
 
@@ -709,6 +756,12 @@ function GlobalMapView({ onSelectBatch }: { onSelectBatch: (b: Batch) => void })
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+      {!navigator.onLine && (
+        <div className="bg-amber-50 border border-amber-200 p-4 rounded-2xl flex items-center gap-3 text-amber-800">
+          <AlertCircle className="w-5 h-5" />
+          <p className="text-xs font-medium">Você está visualizando dados offline. Algumas informações podem estar desatualizadas.</p>
+        </div>
+      )}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h2 className="text-3xl font-serif font-light">Explorar Chimoio</h2>
@@ -761,20 +814,6 @@ function GlobalMapView({ onSelectBatch }: { onSelectBatch: (b: Batch) => void })
         </MapContainer>
       </div>
     </motion.div>
-  );
-}
-
-function NavButton({ active, icon: Icon, onClick }: any) {
-  return (
-    <button 
-      onClick={onClick}
-      className={cn(
-        "p-3 rounded-xl transition-all duration-300",
-        active ? "bg-emerald-600 text-white scale-110 shadow-lg shadow-emerald-900/40" : "text-white/40 hover:text-white"
-      )}
-    >
-      <Icon className="w-6 h-6" />
-    </button>
   );
 }
 
@@ -854,18 +893,19 @@ function ScanView({ onResult }: { onResult: (batch: Batch) => void }) {
 }
 
 function TraceView({ scannedBatch }: { scannedBatch: Batch | null }) {
-  const [batch, setBatch] = useState<Batch | null>(scannedBatch);
   const [farmer, setFarmer] = useState<Farmer | null>(null);
 
   useEffect(() => {
-    if (batch) {
-      getDoc(doc(db, 'farmers', batch.farmerId)).then(doc => {
+    if (scannedBatch) {
+      // Use onSnapshot for real-time and offline availability
+      const unsubscribe = onSnapshot(doc(db, 'farmers', scannedBatch.farmerId), (doc) => {
         if (doc.exists()) setFarmer(doc.data() as Farmer);
       });
+      return unsubscribe;
     }
-  }, [batch]);
+  }, [scannedBatch]);
 
-  if (!batch) return (
+  if (!scannedBatch) return (
     <div className="text-center py-20 bg-emerald-50 rounded-3xl border border-emerald-100">
       <Search className="w-12 h-12 text-emerald-300 mx-auto mb-4" />
       <p className="text-emerald-800 font-medium">Nenhum lote selecionado para rastreio.</p>
@@ -885,17 +925,17 @@ function TraceView({ scannedBatch }: { scannedBatch: Batch | null }) {
             <div className="bg-emerald-600 text-white text-[10px] uppercase font-bold tracking-widest px-3 py-1 rounded-full">
               Autêntico Moz
             </div>
-            <p className="text-[10px] text-gray-400 font-mono">ID: {batch.batchId}</p>
+            <p className="text-[10px] text-gray-400 font-mono">ID: {scannedBatch.batchId}</p>
           </div>
-          <h2 className="text-3xl sm:text-4xl font-bold text-emerald-900">{batch.cropType}</h2>
+          <h2 className="text-3xl sm:text-4xl font-bold text-emerald-900">{scannedBatch.cropType}</h2>
           <div className="pt-4 space-y-3">
             <div className="flex justify-between text-sm">
               <span className="text-gray-500">Colheita</span>
-              <span className="font-semibold">{formatDate(batch.harvestDate)}</span>
+              <span className="font-semibold">{formatDate(scannedBatch.harvestDate)}</span>
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-gray-500">Quantidade</span>
-              <span className="font-semibold">{batch.quantity}</span>
+              <span className="font-semibold">{scannedBatch.quantity}</span>
             </div>
             <div className="flex justify-between text-sm border-t pt-3">
               <span className="text-gray-500">Certificado</span>
@@ -939,7 +979,7 @@ function TraceView({ scannedBatch }: { scannedBatch: Batch | null }) {
       <div className="lg:col-span-2 space-y-8">
         <div className="h-[300px] sm:h-[400px] bg-gray-100 rounded-[2.5rem] sm:rounded-[3rem] overflow-hidden border border-[#E5E2D9] relative flex items-center justify-center z-0 group">
           <MapContainer 
-            center={[batch.location.lat, batch.location.lng]} 
+            center={[scannedBatch.location.lat, scannedBatch.location.lng]} 
             zoom={14} 
             style={{ width: '100%', height: '100%' }}
             scrollWheelZoom={false}
@@ -948,7 +988,7 @@ function TraceView({ scannedBatch }: { scannedBatch: Batch | null }) {
               attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             />
-            <Marker position={[batch.location.lat, batch.location.lng]} icon={L.divIcon({
+            <Marker position={[scannedBatch.location.lat, scannedBatch.location.lng]} icon={L.divIcon({
               className: 'custom-div-icon',
               html: `<div class="relative">
                 <div class="absolute -top-10 -left-5 bg-emerald-600 text-white p-2 rounded-full border-4 border-white shadow-2xl animate-bounce">
@@ -961,7 +1001,7 @@ function TraceView({ scannedBatch }: { scannedBatch: Batch | null }) {
             })}>
               <Popup className="custom-popup">
                 <div className="p-2">
-                  <div className="font-bold text-emerald-900 text-lg mb-1">{batch.cropType}</div>
+                  <div className="font-bold text-emerald-900 text-lg mb-1">{scannedBatch.cropType}</div>
                   <div className="text-xs text-gray-500 flex items-center gap-1">
                     <MapPin className="w-3 h-3" /> Chimoio, Moçambique
                   </div>
@@ -1003,7 +1043,7 @@ function TraceView({ scannedBatch }: { scannedBatch: Batch | null }) {
             <History className="w-6 h-6 text-emerald-600" /> Jornada do Produto
           </h3>
           <div className="space-y-8 relative before:absolute before:left-3 before:top-4 before:bottom-0 before:w-px before:bg-emerald-100">
-            {batch.journey.map((step, idx) => (
+            {scannedBatch.journey.map((step, idx) => (
               <div key={idx} className="relative pl-10">
                 <div className="absolute left-0 top-1 w-6 h-6 bg-emerald-50 rounded-full border-2 border-emerald-600 flex items-center justify-center z-10 group-hover:bg-emerald-600 transition-colors">
                   <div className="w-2 h-2 bg-emerald-600 rounded-full" />
@@ -1030,183 +1070,265 @@ function FarmerPortal({ user, login }: { user: UserProfile | null, login: () => 
   const [batches, setBatches] = useState<Batch[]>([]);
   const [showAdd, setShowAdd] = useState(false);
   const [showEditProfile, setShowEditProfile] = useState(false);
+  const [selectedBatch, setSelectedBatch] = useState<Batch | null>(null);
   const [farmerData, setFarmerData] = useState<Farmer | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (user) {
       const q = query(collection(db, 'batches'), where('farmerId', '==', user.uid));
-      const unsubscribe = onSnapshot(q, (snap) => {
+      const unsubscribeBatches = onSnapshot(q, (snap) => {
         setBatches(snap.docs.map(doc => doc.data() as Batch));
       }, (error) => {
         handleFirestoreError(error, OperationType.LIST, `batches/farmer/${user.uid}`);
       });
       
-      getDoc(doc(db, 'farmers', user.uid)).then(doc => {
+      const unsubscribeFarmer = onSnapshot(doc(db, 'farmers', user.uid), (doc) => {
         if (doc.exists()) setFarmerData(doc.data() as Farmer);
-      }).catch(error => {
+      }, (error) => {
         handleFirestoreError(error, OperationType.GET, `farmers/${user.uid}`);
       });
 
-      return unsubscribe;
+      return () => {
+        unsubscribeBatches();
+        unsubscribeFarmer();
+      };
     }
   }, [user]);
 
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user) return;
+
+    setUploading(true);
+    try {
+      const storageRef = ref(storage, `profile_photos/${user.uid}`);
+      await uploadBytes(storageRef, file);
+      const photoUrl = await getDownloadURL(storageRef);
+
+      // Update both collections for consistency
+      await Promise.all([
+        updateDoc(doc(db, 'users', user.uid), { photoUrl }),
+        updateDoc(doc(db, 'farmers', user.uid), { photoUrl })
+      ]);
+
+      showToast('Foto de perfil atualizada!', 'success');
+    } catch (error) {
+      console.error('Error uploading photo:', error);
+      showToast('Erro ao carregar a foto.', 'error');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const [filter, setFilter] = useState<'all' | '30d' | '6m' | '1y'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'harvested' | 'distributing' | 'market'>('all');
+
+  const filteredBatches = batches.filter(batch => {
+    // Time filter
+    let timeMatch = true;
+    if (filter !== 'all') {
+      const date = new Date(batch.harvestDate);
+      const now = new Date();
+      const diff = now.getTime() - date.getTime();
+      const days = diff / (1000 * 3600 * 24);
+      
+      if (filter === '30d') timeMatch = days <= 30;
+      else if (filter === '6m') timeMatch = days <= 180;
+      else if (filter === '1y') timeMatch = days <= 365;
+    }
+
+    // Status filter
+    let statusMatch = true;
+    if (statusFilter !== 'all') {
+      statusMatch = batch.status === statusFilter;
+    }
+
+    return timeMatch && statusMatch;
+  });
+
   if (!user) {
     return (
-      <div className="text-center py-32 bg-white rounded-[3rem] border border-[#E5E2D9] shadow-sm space-y-6">
+      <div className="text-center py-20 bg-white rounded-[3rem] border border-[#E5E2D9] shadow-sm space-y-6">
          <div className="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center mx-auto">
             <ShieldCheck className="w-10 h-10 text-emerald-600" />
          </div>
-         <h2 className="text-3xl font-serif font-light">Acesso Restrito</h2>
-         <p className="text-gray-500 max-w-sm mx-auto">Inicie sessão no Portal do Produtor para gerir as suas colheitas e certificados GAP.</p>
-         <button onClick={login} className="bg-emerald-600 text-white px-8 py-4 rounded-2xl font-bold shadow-lg shadow-emerald-500/20">Entrar como Produtor</button>
+         <h2 className="text-3xl font-bold text-emerald-950">Acesso Restrito</h2>
+         <p className="text-gray-500 max-w-sm mx-auto text-sm">Inicie sessão para gerir as suas colheitas e certificados GAP.</p>
+         <button onClick={login} className="bg-emerald-600 text-white px-8 py-4 rounded-2xl font-bold shadow-lg shadow-emerald-500/20 active:scale-95 transition-transform">Entrar como Produtor</button>
       </div>
     );
   }
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-8">
-      <div className="grid lg:grid-cols-3 gap-6 sm:gap-8">
-        <div className="lg:col-span-1 bg-white p-6 sm:p-8 rounded-[2.5rem] border border-[#E5E2D9] shadow-xl space-y-8">
-          <div className="flex flex-col items-center text-center space-y-4">
-             <div className="w-24 h-24 bg-emerald-100 rounded-3xl flex items-center justify-center text-emerald-600 shadow-inner group overflow-hidden relative">
-                <img 
-                  src={farmerData?.photoUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.uid}`} 
-                  className="w-full h-full object-cover" 
-                />
-                <div 
-                  onClick={() => setShowEditProfile(true)}
-                  className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer"
-                >
+      {/* Profile Summary Card */}
+      <section className="bg-white p-6 rounded-[2.5rem] border border-[#E5E2D9] shadow-xl relative overflow-hidden group">
+        <input 
+          type="file" 
+          hidden 
+          ref={fileInputRef} 
+          accept="image/*" 
+          onChange={handlePhotoUpload} 
+        />
+        <div className="absolute top-0 right-0 p-6 flex gap-2">
+           <button 
+            onClick={() => setShowEditProfile(true)}
+            className="p-3 bg-gray-50 rounded-2xl text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 active:scale-90 transition-all shadow-sm"
+            title="Editar Perfil"
+           >
+             <UserPlus className="w-5 h-5" />
+           </button>
+        </div>
+
+        <div className="flex items-center gap-5">
+           <div 
+             onClick={() => !uploading && fileInputRef.current?.click()}
+             className="w-20 h-20 bg-emerald-100 rounded-[2rem] overflow-hidden border-4 border-white shadow-lg relative cursor-pointer group/avatar"
+           >
+              {uploading ? (
+                <div className="absolute inset-0 bg-black/20 backdrop-blur-sm flex items-center justify-center z-10">
+                  <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                </div>
+              ) : (
+                <div className="absolute inset-0 bg-black/0 group-hover/avatar:bg-black/20 flex items-center justify-center z-10 transition-colors opacity-0 group-hover/avatar:opacity-100">
                   <Camera className="w-6 h-6 text-white" />
                 </div>
-             </div>
-             <div className="pt-2">
-                <h3 className="font-bold text-2xl text-emerald-900">{farmerData?.name || user.displayName}</h3>
-                <p className="text-sm text-emerald-600/60 font-bold uppercase tracking-widest">Produtor Certificado</p>
-             </div>
-          </div>
-          
-          <div className="space-y-6 pt-6 border-t border-gray-100">
-             {/* Certification Status - Prominent */}
-             <div className="bg-emerald-600 text-white p-6 rounded-3xl shadow-lg shadow-emerald-600/20 relative overflow-hidden group">
-                <ShieldCheck className="absolute -right-4 -bottom-4 w-24 h-24 text-white/10 rotate-12 group-hover:rotate-0 transition-transform duration-500" />
-                <div className="relative z-10">
-                   <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-100 mb-1">Status Global GAP</p>
-                   <h4 className="text-2xl font-black">CERTIFICADO</h4>
-                   <p className="text-xs font-medium text-emerald-50 mt-2 opacity-80">Validade: Dezembro 2026</p>
-                </div>
-             </div>
-
-             <div className="space-y-5">
-                <h4 className="text-[10px] font-black text-emerald-900 border-b border-emerald-100 pb-2 uppercase tracking-tighter">Gestão de Perfil</h4>
-                
-                <div className="grid grid-cols-1 gap-4">
-                   <div className="relative group/field">
-                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block ml-1 mb-1">Nome de Exibição</label>
-                      <div className="flex items-center gap-3 py-3 px-4 bg-gray-50 rounded-2xl text-sm font-bold text-gray-700 border border-gray-100 transition-colors group-hover/field:border-emerald-200">
-                         <User className="w-4 h-4 text-emerald-600" />
-                         <span className="truncate">{farmerData?.name || user.displayName}</span>
-                      </div>
-                   </div>
-
-                   <div className="relative group/field">
-                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block ml-1 mb-1">Biografia</label>
-                      <div className="py-3 px-4 bg-gray-50 rounded-2xl text-xs font-medium text-gray-500 border border-gray-100 transition-colors group-hover/field:border-emerald-200 min-h-[60px]">
-                         {farmerData?.bio ? (
-                           <p className="italic leading-relaxed">"{farmerData.bio}"</p>
-                         ) : (
-                           <span className="text-gray-300 italic">Nenhuma biografia definida.</span>
-                         )}
-                      </div>
-                   </div>
-
-                   <div className="relative group/field">
-                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block ml-1 mb-1">Contacto Directo</label>
-                      <div className="flex items-center gap-3 py-3 px-4 bg-gray-50 rounded-2xl text-sm font-bold text-gray-700 border border-gray-100 transition-colors group-hover/field:border-emerald-200">
-                         <Phone className="w-4 h-4 text-emerald-600" />
-                         {farmerData?.phoneNumber || '+258 84 000 0000'}
-                      </div>
-                   </div>
-
-                   <div className="relative group/field">
-                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block ml-1 mb-1">Localização da Farm</label>
-                      <div className="h-40 bg-gray-50 rounded-2xl overflow-hidden border border-gray-100 relative z-0 transition-colors group-hover/field:border-emerald-200">
-                      {farmerData?.location ? (
-                        <MapContainer 
-                          center={[farmerData.location.lat, farmerData.location.lng]} 
-                          zoom={13} 
-                          style={{ width: '100%', height: '100%' }}
-                          zoomControl={false}
-                          scrollWheelZoom={false}
-                          dragging={false}
-                          doubleClickZoom={false}
-                        >
-                          <TileLayer
-                            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                          />
-                          <Marker position={[farmerData.location.lat, farmerData.location.lng]} icon={defaultIcon} />
-                        </MapContainer>
-                      ) : (
-                        <div className="w-full h-full flex flex-col items-center justify-center p-4">
-                          <MapPin className="w-6 h-6 text-gray-300 mb-2" />
-                          <p className="text-[10px] text-gray-400 font-bold uppercase">{farmerData?.province || 'Localização Não Definida'}</p>
-                        </div>
-                      )}
-                      
-                      <div className="absolute bottom-3 left-3 bg-white/90 backdrop-blur px-3 py-1 rounded-full shadow-sm border border-white/20 text-[10px] font-bold text-emerald-900 z-10">
-                        {farmerData?.province || 'Chimoio, Moçambique'}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-             </div>
-
-             <button 
-                onClick={() => setShowEditProfile(true)}
-                className="w-full py-4 text-sm font-bold text-emerald-600 bg-emerald-50 hover:bg-emerald-100 rounded-2xl transition-all shadow-sm"
-             >
-                Editar Perfil do Produtor
-             </button>
-          </div>
+              )}
+              <img 
+                src={farmerData?.photoUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.uid}`} 
+                className="w-full h-full object-cover" 
+              />
+           </div>
+           <div className="space-y-1">
+              <h3 className="font-bold text-xl text-emerald-950">{farmerData?.name || user.displayName}</h3>
+              <div className="flex items-center gap-2">
+                 <span className="px-2 py-0.5 bg-emerald-600 text-white text-[8px] font-black uppercase tracking-widest rounded-md">GAP CERTIFIED</span>
+                 <p className="text-[10px] text-gray-400 font-bold uppercase tracking-tighter">{farmerData?.province || 'Chimoio, MOZ'}</p>
+              </div>
+              {farmerData?.bio && (
+                <p className="text-xs text-gray-500 mt-2 line-clamp-2 italic leading-relaxed">
+                  "{farmerData.bio}"
+                </p>
+              )}
+           </div>
         </div>
 
-        <div className="lg:col-span-2 space-y-6">
-          <div className="flex justify-between items-center bg-white p-4 sm:p-6 rounded-3xl border border-[#E5E2D9] shadow-sm">
-            <h3 className="font-bold text-sm sm:text-base">Colheitas Recentes</h3>
-            <button 
-              onClick={() => setShowAdd(true)}
-              className="bg-emerald-600 text-white px-5 py-2.5 rounded-xl text-sm font-bold hover:bg-emerald-700 transition-colors flex items-center gap-2"
-            >
-              Registar Colheita +
-            </button>
-          </div>
+        <div className="mt-6 pt-6 border-t border-gray-100 grid grid-cols-3 gap-4">
+           <div className="text-center">
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">Lotes</p>
+              <p className="font-black text-xl text-emerald-950">{batches.length}</p>
+           </div>
+           <div className="text-center border-x border-gray-100">
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">Status</p>
+              <p className="font-black text-xl text-emerald-600">Ativo</p>
+           </div>
+           <div className="text-center">
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">Expira</p>
+              <p className="font-black text-xl text-amber-600">12/26</p>
+           </div>
+        </div>
+      </section>
 
-          <div className="grid md:grid-cols-2 gap-4 sm:gap-6">
-            {batches.map(b => (
-              <div key={b.batchId} className="bg-white p-5 sm:p-6 rounded-3xl border border-[#E5E2D9] hover:border-emerald-200 transition-all flex items-center gap-4">
-                <div className="bg-emerald-50 p-3 rounded-2xl">
-                  <QRCodeSVG value={b.batchId} size={60} level="H" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <h4 className="font-bold truncate text-lg">{b.cropType}</h4>
-                  <div className="flex items-center gap-2 mt-1">
-                    <span className="text-[10px] text-gray-400 font-mono">{b.batchId}</span>
-                    <span className="bg-emerald-100 text-emerald-700 text-[9px] px-2 py-0.5 rounded-full font-bold uppercase">{b.status}</span>
-                  </div>
-                </div>
-              </div>
+      {/* Batches Section */}
+      <section className="space-y-6">
+        <div className="flex items-center justify-between">
+           <h4 className="font-bold text-emerald-950 text-lg">Minhas Colheitas</h4>
+           <button 
+            onClick={() => setShowAdd(true)}
+            className="w-10 h-10 bg-emerald-600 text-white rounded-xl flex items-center justify-center active:scale-90 transition-transform shadow-lg shadow-emerald-600/20"
+           >
+             <UserPlus className="w-5 h-5" />
+           </button>
+        </div>
+
+        {/* Filter Buttons */}
+        <div className="space-y-4">
+          <div className="flex gap-2 overflow-x-auto pb-2 -mx-2 px-2 invisible-scrollbar">
+            {[
+              { id: 'all', label: 'Tudo' },
+              { id: '30d', label: '30 Dias' },
+              { id: '6m', label: '6 Meses' },
+              { id: '1y', label: '1 Ano' }
+            ].map(f => (
+              <button
+                key={f.id}
+                onClick={() => setFilter(f.id as any)}
+                className={cn(
+                  "px-4 py-2 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all shrink-0 border",
+                  filter === f.id 
+                    ? "bg-emerald-600 text-white border-emerald-600 shadow-md" 
+                    : "bg-white text-gray-400 border-[#E5E2D9] hover:border-emerald-200"
+                )}
+              >
+                {f.label}
+              </button>
             ))}
+          </div>
 
-            {batches.length === 0 && (
-              <div className="col-span-full py-20 text-center bg-gray-50 rounded-3xl border-2 border-dashed border-gray-200">
-                 <Leaf className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-                 <p className="text-gray-400 font-medium">Ainda não registou nenhuma colheita.</p>
-              </div>
-            )}
+          <div className="flex gap-2 overflow-x-auto pb-2 -mx-2 px-2 invisible-scrollbar">
+            {[
+              { id: 'all', label: 'Todos os Status' },
+              { id: 'harvested', label: 'Colhido' },
+              { id: 'distributing', label: 'Distribuição' },
+              { id: 'market', label: 'Mercado' }
+            ].map(f => (
+              <button
+                key={f.id}
+                onClick={() => setStatusFilter(f.id as any)}
+                className={cn(
+                  "px-4 py-2 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all shrink-0 border",
+                  statusFilter === f.id 
+                    ? "bg-amber-500 text-white border-amber-500 shadow-md" 
+                    : "bg-white text-gray-400 border-[#E5E2D9] hover:border-amber-200"
+                )}
+              >
+                {f.label}
+              </button>
+            ))}
           </div>
         </div>
-      </div>
+
+        <div className="space-y-3">
+          {filteredBatches.map(b => (
+            <div 
+              key={b.batchId} 
+              onClick={() => setSelectedBatch(b)}
+              className="bg-white p-4 rounded-[2rem] border border-[#E5E2D9] flex items-center gap-4 active:scale-[0.98] transition-transform cursor-pointer hover:border-emerald-200 group"
+            >
+              <div className="bg-gray-50 p-2 rounded-2xl border border-gray-100 group-hover:bg-emerald-50 transition-colors">
+                <QRCodeSVG value={b.batchId} size={48} level="H" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h5 className="font-bold text-emerald-900 truncate">{b.cropType}</h5>
+                <p className="text-[10px] font-mono text-gray-400">{b.batchId}</p>
+              </div>
+               <div className="text-right">
+                  <span className={cn(
+                    "px-3 py-1 text-[10px] font-black uppercase tracking-widest rounded-lg",
+                    b.status === 'harvested' ? "bg-emerald-50 text-emerald-700" :
+                    b.status === 'distributing' ? "bg-amber-50 text-amber-700" :
+                    b.status === 'market' ? "bg-blue-50 text-blue-700" :
+                    "bg-gray-50 text-gray-700"
+                  )}>
+                    {b.status === 'harvested' ? 'Colhido' : 
+                     b.status === 'distributing' ? 'Distribuição' :
+                     b.status === 'market' ? 'Mercado' : b.status}
+                  </span>
+                  <p className="text-[10px] text-gray-400 mt-1 font-bold">{b.quantity}</p>
+               </div>
+            </div>
+          ))}
+
+          {filteredBatches.length === 0 && (
+            <div className="py-20 text-center bg-gray-50 rounded-[2.5rem] border-2 border-dashed border-gray-200">
+               <Leaf className="w-12 h-12 text-gray-300 mx-auto mb-4 animate-pulse" />
+               <p className="text-gray-400 font-bold text-sm uppercase tracking-tighter">Sem colheitas registadas</p>
+            </div>
+          )}
+        </div>
+      </section>
       
       {showAdd && <AddBatchModal userId={user.uid} onClose={() => setShowAdd(false)} />}
       {showEditProfile && (
@@ -1217,35 +1339,37 @@ function FarmerPortal({ user, login }: { user: UserProfile | null, login: () => 
           onSave={(updated) => setFarmerData(updated)}
         />
       )}
+      {selectedBatch && (
+        <BatchHistoryModal 
+          batch={selectedBatch} 
+          onClose={() => setSelectedBatch(null)} 
+        />
+      )}
+      <div className="h-20"></div>
     </motion.div>
   );
 }
 
-function LoginForm({ lang, onBack, onLogin, onGoogle, onGoRegister }: any) {
+function LoginForm({ lang, onBack, onLogin, onGoogle, onGoRegister, onEmailLogin }: any) {
   const [phone, setPhone] = useState('');
-  const [verificationId, setVerificationId] = useState<ConfirmationResult | null>(null);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [verificationId, setVerificationId] = useState<any>(null);
   const [otp, setOtp] = useState('');
   const [loading, setLoading] = useState(false);
-
-  const setUpRecaptcha = () => {
-    if ((window as any).recaptchaVerifierLogin) return;
-    (window as any).recaptchaVerifierLogin = new RecaptchaVerifier(auth, 'recaptcha-container-login', {
-      'size': 'invisible'
-    });
-  };
+  const [loginMethod, setLoginMethod] = useState<'email' | 'phone'>('email');
 
   const onSendCode = async () => {
     if (!phone || phone.length < 9) return;
     setLoading(true);
     try {
-      setUpRecaptcha();
-      const appVerifier = (window as any).recaptchaVerifierLogin;
+      const verifier = new RecaptchaVerifier(auth, 'recaptcha-container-login', { 'size': 'invisible' });
       let formattedPhone = phone.replace(/\s+/g, '');
       if (!formattedPhone.startsWith('+')) {
         if (formattedPhone.startsWith('258')) formattedPhone = '+' + formattedPhone;
         else formattedPhone = '+258' + formattedPhone;
       }
-      const confirmationResult = await signInWithPhoneNumber(auth, formattedPhone, appVerifier);
+      const confirmationResult = await signInWithPhoneNumber(auth, formattedPhone, verifier);
       setVerificationId(confirmationResult);
     } catch (error) {
       console.error(error);
@@ -1267,79 +1391,146 @@ function LoginForm({ lang, onBack, onLogin, onGoogle, onGoRegister }: any) {
     }
   };
 
+  const handleEmailSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      await onEmailLogin({ email, password });
+    } catch (e) {
+      // toast shown in handleEmailLogin
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <motion.div 
-      initial={{ opacity: 0, x: 20 }}
+      initial={{ opacity: 0, x: -20 }}
       animate={{ opacity: 1, x: 0 }}
       className="w-full space-y-6"
     >
-      {!verificationId ? (
-        <div className="space-y-4">
+      <div className="flex bg-gray-100 p-1 rounded-2xl">
+        <button 
+          onClick={() => setLoginMethod('email')}
+          className={cn("flex-1 py-2 text-[10px] font-bold rounded-xl transition-all", loginMethod === 'email' ? "bg-white text-emerald-600 shadow-sm" : "text-gray-400")}
+        >
+          EMAIL
+        </button>
+        <button 
+          onClick={() => setLoginMethod('phone')}
+          className={cn("flex-1 py-2 text-[10px] font-bold rounded-xl transition-all", loginMethod === 'phone' ? "bg-white text-emerald-600 shadow-sm" : "text-gray-400")}
+        >
+          SMS
+        </button>
+      </div>
+
+      {loginMethod === 'email' ? (
+        <form onSubmit={handleEmailSubmit} className="space-y-4">
           <div className="relative text-left">
-            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1 mb-1 block">{lang === 'pt' ? "Telemóvel" : "Phone"}</label>
+            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1 mb-1 block">Email</label>
             <div className="relative">
-              <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+              <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
               <input 
-                type="text" 
-                placeholder="e.g. 84 123 4567"
-                className="w-full bg-gray-50 border border-gray-100 rounded-2xl py-4 pl-12 pr-4 focus:ring-2 focus:ring-emerald-600 outline-none transition-all"
-                value={phone}
-                onChange={e => setPhone(e.target.value)}
+                type="email" 
+                required
+                placeholder="exemplo@agrotrace.com"
+                className="w-full bg-gray-50 border border-gray-100 rounded-2xl py-4 pl-12 pr-4 focus:ring-2 focus:ring-emerald-600 outline-none transition-all text-sm"
+                value={email}
+                onChange={e => setEmail(e.target.value)}
               />
             </div>
           </div>
-          
-          <div id="recaptcha-container-login"></div>
-
+          <div className="relative text-left">
+            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1 mb-1 block">{lang === 'pt' ? "Senha" : "Password"}</label>
+            <div className="relative">
+              <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+              <input 
+                type="password" 
+                required
+                placeholder="••••••••"
+                className="w-full bg-gray-50 border border-gray-100 rounded-2xl py-4 pl-12 pr-4 focus:ring-2 focus:ring-emerald-600 outline-none transition-all text-sm"
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+              />
+            </div>
+          </div>
           <button 
-            onClick={onSendCode}
-            disabled={loading || !phone}
+            type="submit"
+            disabled={loading}
             className="w-full bg-emerald-600 text-white py-4 px-6 rounded-2xl font-bold shadow-xl shadow-emerald-600/20 active:scale-95 transition-transform flex items-center justify-center gap-2 disabled:opacity-50"
           >
-            {loading ? "..." : (lang === 'pt' ? "ENTRAR COM SMS" : "LOGIN WITH SMS")} <ArrowRight className="w-5 h-5" />
+            {loading ? "..." : (lang === 'pt' ? "ENTRAR NO PORTAL" : "LOGIN TO PORTAL")} <ArrowRight className="w-5 h-5" />
           </button>
-        </div>
+        </form>
       ) : (
         <div className="space-y-4">
-          <div className="text-center space-y-2">
-            <h4 className="font-bold text-emerald-900">{lang === 'pt' ? "Código de Acesso" : "Access Code"}</h4>
-            <p className="text-sm text-gray-500">{lang === 'pt' ? "Introduza o código enviado para" : "Enter the code sent to"} <b>{phone}</b></p>
-          </div>
-          <div className="relative">
-            <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-            <input 
-              type="text" 
-              placeholder="000000"
-              maxLength={6}
-              className="w-full bg-gray-50 border border-gray-100 rounded-2xl py-4 pl-12 pr-4 focus:ring-2 focus:ring-emerald-600 outline-none transition-all text-center tracking-[0.5em] font-bold text-xl"
-              value={otp}
-              onChange={e => setOtp(e.target.value)}
-            />
-          </div>
-          <button 
-            onClick={onVerifyCode}
-            disabled={loading || otp.length < 6}
-            className="w-full bg-emerald-600 text-white py-4 px-6 rounded-2xl font-bold shadow-xl shadow-emerald-600/20 active:scale-95 transition-transform flex items-center justify-center gap-2 disabled:opacity-50"
-          >
-            {loading ? "..." : (lang === 'pt' ? "VERIFICAR E ENTRAR" : "VERIFY & LOGIN")}
-          </button>
-          <button onClick={() => setVerificationId(null)} className="w-full text-xs text-gray-400 font-bold uppercase">
-            {lang === 'pt' ? "Mudar número" : "Change number"}
-          </button>
+          {!verificationId ? (
+            <div className="space-y-4">
+              <div className="relative text-left">
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1 mb-1 block">{lang === 'pt' ? "Telemóvel" : "Phone"}</label>
+                <div className="relative">
+                  <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                  <input 
+                    type="tel" 
+                    placeholder="e.g. 84 123 4567"
+                    className="w-full bg-gray-50 border border-gray-100 rounded-2xl py-4 pl-12 pr-4 focus:ring-2 focus:ring-emerald-600 outline-none transition-all text-sm"
+                    value={phone}
+                    onChange={e => setPhone(e.target.value)}
+                  />
+                </div>
+              </div>
+              <div id="recaptcha-container-login"></div>
+              <button 
+                onClick={onSendCode}
+                disabled={loading || !phone}
+                className="w-full bg-emerald-600 text-white py-4 px-6 rounded-2xl font-bold shadow-xl shadow-emerald-600/20 active:scale-95 transition-transform flex items-center justify-center gap-2 disabled:opacity-50"
+              >
+                {loading ? "..." : (lang === 'pt' ? "ENTRAR COM SMS" : "LOGIN WITH SMS")} <ArrowRight className="w-5 h-5" />
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="text-center space-y-2">
+                <h4 className="font-bold text-emerald-900">{lang === 'pt' ? "Código de Acesso" : "Access Code"}</h4>
+                <p className="text-sm text-gray-500">{lang === 'pt' ? "Introduza o código enviado para" : "Enter the code sent to"} <b>{phone}</b></p>
+              </div>
+              <div className="relative">
+                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <input 
+                  type="text" 
+                  placeholder="000000"
+                  maxLength={6}
+                  className="w-full bg-gray-50 border border-gray-100 rounded-2xl py-4 pl-12 pr-4 focus:ring-2 focus:ring-emerald-600 outline-none transition-all text-center tracking-[0.5em] font-bold text-xl"
+                  value={otp}
+                  onChange={e => setOtp(e.target.value)}
+                />
+              </div>
+              <button 
+                onClick={onVerifyCode}
+                disabled={loading || otp.length < 6}
+                className="w-full bg-emerald-600 text-white py-4 px-6 rounded-2xl font-bold shadow-xl shadow-emerald-600/20 active:scale-95 transition-transform flex items-center justify-center gap-2 disabled:opacity-50"
+              >
+                {loading ? "..." : (lang === 'pt' ? "VERIFICAR E ENTRAR" : "VERIFY & LOGIN")}
+              </button>
+              <button onClick={() => setVerificationId(null)} className="w-full text-xs text-gray-400 font-bold uppercase">
+                {lang === 'pt' ? "Mudar número" : "Change number"}
+              </button>
+            </div>
+          )}
         </div>
       )}
 
       <div className="flex items-center gap-4 py-2">
         <div className="h-px bg-gray-100 flex-1"></div>
-        <span className="text-xs text-gray-400 font-bold uppercase">{lang === 'pt' ? "OU" : "OR"}</span>
+        <span className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">{lang === 'pt' ? "Ou Entrar Com" : "Or Login With"}</span>
         <div className="h-px bg-gray-100 flex-1"></div>
       </div>
 
       <button 
         onClick={onGoogle}
-        className="w-full bg-white text-gray-700 py-4 px-6 rounded-2xl font-bold border border-gray-100 shadow-sm active:scale-95 transition-transform flex items-center justify-center gap-2"
+        className="w-full bg-white text-gray-700 py-4 px-6 rounded-2xl font-bold border border-gray-100 shadow-sm active:scale-95 transition-transform flex items-center justify-center gap-2 text-sm"
       >
-        <img src="https://www.google.com/favicon.ico" className="w-4 h-4" /> Google Login
+        <img src="https://www.google.com/favicon.ico" className="w-4 h-4" /> Google
       </button>
 
       <div className="pt-4 flex flex-col items-center gap-4">
@@ -1357,70 +1548,27 @@ function LoginForm({ lang, onBack, onLogin, onGoogle, onGoRegister }: any) {
 function RegisterForm({ lang, onBack, onRegister }: any) {
   const [formData, setFormData] = useState({
     name: '',
+    email: '',
     phone: '',
     location: '',
-    pass: '' // We'll keep password for secondary auth or drop it if purely phone
+    password: ''
   });
   const [detecting, setDetecting] = useState(false);
-  const [verificationId, setVerificationId] = useState<ConfirmationResult | null>(null);
-  const [otp, setOtp] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const setUpRecaptcha = () => {
-    if ((window as any).recaptchaVerifier) return;
-    (window as any).recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
-      'size': 'invisible',
-      'callback': (response: any) => {
-        // reCAPTCHA solved, allow signInWithPhoneNumber.
-        console.log("Recaptcha solved");
-      }
-    });
-  };
-
-  const onSendCode = async () => {
-    if (!formData.phone || formData.phone.length < 9) {
-      showToast(lang === 'pt' ? 'Por favor, insira um número de telemóvel válido.' : 'Please enter a valid phone number.', 'info');
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formData.name || !formData.email || !formData.password || !formData.phone) {
+      showToast(lang === 'pt' ? 'Por favor, preencha todos os campos obrigatórios.' : 'Please fill all required fields.', 'info');
       return;
     }
     
     setLoading(true);
     try {
-      setUpRecaptcha();
-      const appVerifier = (window as any).recaptchaVerifier;
-      
-      // Format number for Moçambique +258
-      let formattedPhone = formData.phone.replace(/\s+/g, '');
-      if (!formattedPhone.startsWith('+')) {
-        if (formattedPhone.startsWith('258')) formattedPhone = '+' + formattedPhone;
-        else formattedPhone = '+258' + formattedPhone;
-      }
-
-      const confirmationResult = await signInWithPhoneNumber(auth, formattedPhone, appVerifier);
-      setVerificationId(confirmationResult);
-      showToast('Código SMS enviado para o seu telemóvel!', 'success');
-    } catch (error: any) {
-      console.error('Error sending SMS:', error);
-      showToast(lang === 'pt' ? 'Erro ao enviar SMS. Verifique se o número está correto.' : 'Error sending SMS. Check number.', 'error');
-      if ((window as any).recaptchaVerifier) {
-         (window as any).recaptchaVerifier.clear();
-         (window as any).recaptchaVerifier = null;
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const onVerifyCode = async () => {
-    if (!otp || otp.length < 6) return;
-    setLoading(true);
-    try {
-      await verificationId!.confirm(otp);
-      // User is now signed in with phone!
-      // Now we finalize the profile
       await onRegister(formData);
     } catch (error: any) {
-      console.error('Error verifying OTP:', error);
-      showToast('Código SMS inválido ou expirado.', 'error');
+      console.error('Registration error:', error);
+      showToast(error.message || 'Erro ao realizar o registo.', 'error');
     } finally {
       setLoading(false);
     }
@@ -1436,9 +1584,7 @@ function RegisterForm({ lang, onBack, onRegister }: any) {
     navigator.geolocation.getCurrentPosition(
       (position) => {
         const { latitude, longitude } = position.coords;
-        // In a real app, we might reverse geocode here. 
-        // For now, we'll set it to a descriptive string and keep the coords in data if needed
-        const locString = `Lat: ${latitude.toFixed(4)}, Lng: ${longitude.toFixed(4)}`;
+        const locString = `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
         setFormData(prev => ({ ...prev, location: locString }));
         setDetecting(false);
       },
@@ -1455,44 +1601,71 @@ function RegisterForm({ lang, onBack, onRegister }: any) {
     <motion.div 
       initial={{ opacity: 0, x: 20 }}
       animate={{ opacity: 1, x: 0 }}
-      className="w-full space-y-5"
+      className="w-full"
     >
-      {!verificationId ? (
+      <form onSubmit={handleSubmit} className="space-y-4">
         <div className="space-y-3">
           <div className="relative text-left">
-            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1 mb-1 block">{lang === 'pt' ? "Nome Completo" : "Full Name"}</label>
+            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1 mb-1 block">
+              {lang === 'pt' ? "Nome Completo" : "Full Name"} *
+            </label>
             <div className="relative">
               <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
               <input 
                 type="text" 
+                required
                 placeholder="e.g. João Manuel"
-                className="w-full bg-gray-50 border border-gray-100 rounded-2xl py-4 pl-12 pr-4 focus:ring-2 focus:ring-emerald-600 outline-none transition-all"
+                className="w-full bg-gray-50 border border-gray-100 rounded-2xl py-3 pl-12 pr-4 focus:ring-2 focus:ring-emerald-600 outline-none transition-all text-sm"
                 value={formData.name}
                 onChange={e => setFormData({...formData, name: e.target.value})}
               />
             </div>
           </div>
+
           <div className="relative text-left">
-            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1 mb-1 block">{lang === 'pt' ? "Telemóvel" : "Phone"}</label>
+            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1 mb-1 block">
+              {lang === 'pt' ? "Email" : "Email"} *
+            </label>
+            <div className="relative">
+              <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+              <input 
+                type="email" 
+                required
+                placeholder="exemplo@agrotrace.com"
+                className="w-full bg-gray-50 border border-gray-100 rounded-2xl py-3 pl-12 pr-4 focus:ring-2 focus:ring-emerald-600 outline-none transition-all text-sm"
+                value={formData.email}
+                onChange={e => setFormData({...formData, email: e.target.value})}
+              />
+            </div>
+          </div>
+
+          <div className="relative text-left">
+            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1 mb-1 block">
+              {lang === 'pt' ? "Telemóvel" : "Phone"} *
+            </label>
             <div className="relative">
               <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
               <input 
-                type="text" 
-                placeholder="e.g. 84 000 0000"
-                className="w-full bg-gray-50 border border-gray-100 rounded-2xl py-4 pl-12 pr-4 focus:ring-2 focus:ring-emerald-600 outline-none transition-all"
+                type="tel" 
+                required
+                placeholder="84 000 0000"
+                className="w-full bg-gray-50 border border-gray-100 rounded-2xl py-3 pl-12 pr-4 focus:ring-2 focus:ring-emerald-600 outline-none transition-all text-sm"
                 value={formData.phone}
                 onChange={e => setFormData({...formData, phone: e.target.value})}
               />
             </div>
           </div>
+
           <div className="relative text-left">
-            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1 mb-1 block">{lang === 'pt' ? "Localização / Endereço" : "Location / Address"}</label>
+            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1 mb-1 block">
+              {lang === 'pt' ? "Localização / Província" : "Location / Province"}
+            </label>
             <div className="relative">
               <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
               <input 
                 type="text" 
                 placeholder="e.g. Chimoio, Manica"
-                className="w-full bg-gray-50 border border-gray-100 rounded-2xl py-4 pl-12 pr-14 focus:ring-2 focus:ring-emerald-600 outline-none transition-all"
+                className="w-full bg-gray-50 border border-gray-100 rounded-2xl py-3 pl-12 pr-14 focus:ring-2 focus:ring-emerald-600 outline-none transition-all text-sm"
                 value={formData.location}
                 onChange={e => setFormData({...formData, location: e.target.value})}
               />
@@ -1503,60 +1676,40 @@ function RegisterForm({ lang, onBack, onRegister }: any) {
                 className="absolute right-3 top-1/2 -translate-y-1/2 p-2 bg-emerald-100 text-emerald-600 rounded-xl hover:bg-emerald-200 transition-colors disabled:opacity-50"
                 title={lang === 'pt' ? "Detectar Localização" : "Detect Location"}
               >
-                <LocateFixed className={cn("w-5 h-5", detecting && "animate-pulse")} />
+                <LocateFixed className={cn("w-4 h-4", detecting && "animate-pulse")} />
               </button>
             </div>
           </div>
 
-          <div id="recaptcha-container"></div>
-          
-          <button 
-            onClick={onSendCode}
-            disabled={loading}
-            className="w-full bg-emerald-600 text-white py-4 px-10 rounded-2xl font-bold shadow-xl shadow-emerald-600/20 active:scale-95 transition-transform flex items-center justify-center gap-2 disabled:opacity-50"
-          >
-            {loading ? (lang === 'pt' ? "A PROCESSAR..." : "PROCESSING...") : (lang === 'pt' ? "VERIFICAR NÚMERO" : "VERIFY NUMBER")} <Phone className="w-5 h-5" />
-          </button>
-        </div>
-      ) : (
-        <div className="space-y-4">
-          <div className="text-center space-y-2">
-            <h4 className="font-bold text-emerald-900">{lang === 'pt' ? "Introduza o Código" : "Enter Code"}</h4>
-            <p className="text-sm text-gray-500">{lang === 'pt' ? "Enviámos um SMS para" : "We sent an SMS to"} <span className="font-bold">{formData.phone}</span></p>
-          </div>
-          
           <div className="relative text-left">
+            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1 mb-1 block">
+              {lang === 'pt' ? "Senha" : "Password"} *
+            </label>
             <div className="relative">
               <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
               <input 
-                type="text" 
-                placeholder="123456"
-                maxLength={6}
-                className="w-full bg-gray-50 border border-gray-100 rounded-2xl py-4 pl-12 pr-4 focus:ring-2 focus:ring-emerald-600 outline-none transition-all text-center tracking-[0.5em] font-bold text-xl"
-                value={otp}
-                onChange={e => setOtp(e.target.value)}
+                type="password" 
+                required
+                placeholder="••••••••"
+                className="w-full bg-gray-50 border border-gray-100 rounded-2xl py-3 pl-12 pr-4 focus:ring-2 focus:ring-emerald-600 outline-none transition-all text-sm"
+                value={formData.password}
+                onChange={e => setFormData({...formData, password: e.target.value})}
               />
             </div>
           </div>
-
-          <button 
-            onClick={onVerifyCode}
-            disabled={loading || otp.length < 6}
-            className="w-full bg-emerald-600 text-white py-4 px-10 rounded-2xl font-bold shadow-xl shadow-emerald-600/20 active:scale-95 transition-transform flex items-center justify-center gap-2 disabled:opacity-50"
-          >
-            {loading ? (lang === 'pt' ? "A CONFIRMAR..." : "CONFIRMING...") : (lang === 'pt' ? "CONFIRMAR E REGISTAR" : "CONFIRM & REGISTER")} <ArrowRight className="w-5 h-5" />
-          </button>
-
-          <button 
-            onClick={() => setVerificationId(null)}
-            className="w-full text-sm font-bold text-gray-400 hover:text-gray-600"
-          >
-            {lang === 'pt' ? "Alterar número" : "Change number"}
-          </button>
         </div>
-      )}
 
-      <div className="pt-4 flex flex-col items-center gap-4">
+        <button 
+          type="submit"
+          disabled={loading}
+          className="w-full bg-emerald-600 text-white py-4 px-10 rounded-2xl font-bold shadow-xl shadow-emerald-600/20 active:scale-95 transition-transform flex items-center justify-center gap-2 disabled:opacity-50 mt-4"
+        >
+          {loading ? (lang === 'pt' ? "A PROCESSAR..." : "PROCESSING...") : (lang === 'pt' ? "CRIAR CONTA PRODUTOR" : "CREATE PRODUCER ACCOUNT")} 
+          <UserPlus className="w-5 h-5" />
+        </button>
+      </form>
+
+      <div className="pt-6 flex flex-col items-center gap-4">
         <button onClick={onBack} className="text-sm font-bold text-gray-400 hover:text-gray-600">
           {lang === 'pt' ? "Já tem conta? Entrar" : "Already have an account? Login"}
         </button>
@@ -1740,6 +1893,68 @@ function EditProfileModal({ farmer, userId, onClose, onSave }: any) {
   );
 }
 
+function BatchHistoryModal({ batch, onClose }: { batch: Batch, onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-0 md:p-8">
+      <motion.div 
+        initial={{ y: "100%", opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        exit={{ y: "100%", opacity: 0 }}
+        className="w-full max-w-4xl h-full md:h-auto md:max-h-[90vh] bg-[#FDFCF9] md:rounded-[3rem] shadow-2xl relative overflow-hidden flex flex-col"
+      >
+        {/* Header */}
+        <div className="sticky top-0 bg-white/80 backdrop-blur-xl px-8 py-6 flex items-center justify-between border-b border-[#E5E2D9] z-50 shrink-0">
+           <div>
+             <h3 className="text-xl font-bold text-emerald-950 leading-none">Histórico Detalhado</h3>
+             <p className="text-[10px] text-emerald-600 font-bold uppercase tracking-widest mt-1.5 flex items-center gap-1.5">
+               <ShieldCheck className="w-3 h-3" /> Lote Verificado e Rastreado
+             </p>
+           </div>
+           <button 
+            onClick={onClose} 
+            className="p-3 bg-gray-50 rounded-2xl text-gray-400 hover:text-red-500 hover:bg-red-50 transition-all active:scale-95 shadow-sm"
+           >
+             <X className="w-5 h-5" />
+           </button>
+        </div>
+        
+        {/* Content Container */}
+        <div className="flex-1 overflow-y-auto invisible-scrollbar">
+           <div className="p-4 sm:p-8 max-w-5xl mx-auto">
+              <TraceView scannedBatch={batch} />
+           </div>
+           
+           {/* Summary Info (Producer specific) */}
+           <div className="px-8 pb-12">
+              <div className="bg-emerald-950 rounded-[2.5rem] p-8 text-white relative overflow-hidden">
+                <div className="absolute top-0 right-0 p-8 opacity-10">
+                  <Leaf className="w-32 h-32 rotate-12" />
+                </div>
+                <div className="relative z-10 space-y-4">
+                  <h4 className="text-xl font-bold">Garantia de Qualidade</h4>
+                  <p className="text-emerald-100/70 text-xs leading-relaxed max-w-sm">
+                    Este lote cumpre com todas as normas de segurança alimentar e boas práticas agrícolas 
+                    exigidas para a certificação Global GAP.
+                  </p>
+                  <div className="flex items-center gap-4 pt-2">
+                    <div className="flex -space-x-2">
+                      {[1,2,3].map(i => (
+                        <div key={i} className="w-8 h-8 rounded-full border-2 border-emerald-950 bg-emerald-800 flex items-center justify-center text-[10px] font-bold">
+                          {i}
+                        </div>
+                      ))}
+                    </div>
+                    <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest">3 Auditorias Realizadas</span>
+                  </div>
+                </div>
+              </div>
+           </div>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
 function AddBatchModal({ userId, onClose }: any) {
   const [formData, setFormData] = useState({
     cropType: '',
@@ -1755,18 +1970,22 @@ function AddBatchModal({ userId, onClose }: any) {
         lng: 33.483 + (Math.random() - 0.5) * 0.05 
     };
     
-    await setDoc(doc(db, 'batches', id), {
-      ...formData,
-      batchId: id,
-      farmerId: userId,
-      location,
-      status: 'harvested',
-      journey: [
-        { timestamp: new Date().toISOString(), location: 'Chimoio Farm', description: 'Colheita e registo inicial de rastreabilidade.' }
-      ],
-      qrCode: id
-    });
-    onClose();
+    try {
+      await setDoc(doc(db, 'batches', id), {
+        ...formData,
+        batchId: id,
+        farmerId: userId,
+        location,
+        status: 'harvested',
+        journey: [
+          { timestamp: new Date().toISOString(), location: 'Chimoio Farm', description: 'Colheita e registo inicial de rastreabilidade.' }
+        ],
+        qrCode: id
+      });
+      onClose();
+    } catch (e) {
+      handleFirestoreError(e, OperationType.WRITE, `batches/${id}`);
+    }
   };
 
   return (

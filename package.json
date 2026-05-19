@@ -35,6 +35,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@firebase/eslint-plugin-security-rules": "^0.0.2",
     "@types/express": "^4.17.21",
     "@types/leaflet": "^1.9.21",
     "@types/node": "^22.14.0",

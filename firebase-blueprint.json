@@ -2,34 +2,36 @@
   "entities": {
     "User": {
       "title": "User Profile",
-      "description": "User account information and role",
+      "description": "User account information and role within the AgroTrace platform",
       "type": "object",
       "properties": {
-        "uid": { "type": "string" },
-        "email": { "type": "string" },
-        "displayName": { "type": "string" },
-        "role": { "type": "string", "enum": ["farmer", "buyer", "certifier", "admin"] },
-        "phoneNumber": { "type": "string" },
-        "province": { "type": "string" },
-        "createdAt": { "type": "string", "format": "date-time" }
+        "uid": { "type": "string", "description": "Unique Firebase Auth UID" },
+        "email": { "type": "string", "description": "User email address" },
+        "displayName": { "type": "string", "description": "User display name" },
+        "role": { "type": "string", "enum": ["farmer", "buyer", "certifier", "admin"], "description": "System role" },
+        "phoneNumber": { "type": "string", "description": "Contact phone number" },
+        "province": { "type": "string", "description": "Geographical province" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "ISO 8601 timestamp" },
+        "photoUrl": { "type": "string", "description": "URL to profile photo" }
       },
-      "required": ["uid", "email", "role"]
+      "required": ["uid", "email", "role", "displayName", "createdAt"]
     },
     "Farmer": {
       "title": "Farmer Profile",
-      "description": "Information about a specific farmer in Chimoio",
+      "description": "Detailed information about a specific farmer profiles",
       "type": "object",
       "properties": {
-        "farmerId": { "type": "string" },
-        "name": { "type": "string" },
-        "location": { "type": "object" },
-        "province": { "type": "string" },
-        "certificationStatus": { "type": "string", "enum": ["none", "pending", "certified", "expired"] },
-        "gapId": { "type": "string" },
-        "photoUrl": { "type": "string" },
-        "phoneNumber": { "type": "string" }
+        "farmerId": { "type": "string", "description": "Matches User UID" },
+        "name": { "type": "string", "description": "Full name or farm name" },
+        "location": { "type": "object", "description": "Geographic coordinates {lat, lng}" },
+        "province": { "type": "string", "description": "Province of operation" },
+        "certificationStatus": { "type": "string", "enum": ["none", "pending", "certified", "expired"], "description": "Global GAP status" },
+        "gapId": { "type": "string", "description": "Global GAP Identifier" },
+        "photoUrl": { "type": "string", "description": "Profile or farm image" },
+        "phoneNumber": { "type": "string", "description": "Contact number" },
+        "bio": { "type": "string", "description": "Short biography or farm description" }
       },
-      "required": ["farmerId", "name"]
+      "required": ["farmerId", "name", "certificationStatus"]
     },
     "Batch": {
       "title": "Product Batch",
