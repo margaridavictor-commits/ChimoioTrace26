@@ -1182,18 +1182,18 @@ function FarmerPortal({ user, login }: { user: UserProfile | null, login: () => 
            </button>
         </div>
 
-        <div className="flex items-center gap-5">
+        <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6">
            <div 
              onClick={() => !uploading && fileInputRef.current?.click()}
-             className="w-20 h-20 bg-emerald-100 rounded-[2rem] overflow-hidden border-4 border-white shadow-lg relative cursor-pointer group/avatar"
+             className="w-24 h-24 sm:w-28 sm:h-28 bg-emerald-100 rounded-[2.5rem] overflow-hidden border-4 border-white shadow-xl relative cursor-pointer group/avatar shrink-0 transform hover:rotate-2 transition-transform"
            >
               {uploading ? (
                 <div className="absolute inset-0 bg-black/20 backdrop-blur-sm flex items-center justify-center z-10">
-                  <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  <div className="w-8 h-8 border-2 border-white border-t-transparent rounded-full animate-spin" />
                 </div>
               ) : (
                 <div className="absolute inset-0 bg-black/0 group-hover/avatar:bg-black/20 flex items-center justify-center z-10 transition-colors opacity-0 group-hover/avatar:opacity-100">
-                  <Camera className="w-6 h-6 text-white" />
+                  <Camera className="w-8 h-8 text-white" />
                 </div>
               )}
               <img 
@@ -1201,16 +1201,23 @@ function FarmerPortal({ user, login }: { user: UserProfile | null, login: () => 
                 className="w-full h-full object-cover" 
               />
            </div>
-           <div className="space-y-1">
-              <h3 className="font-bold text-xl text-emerald-950">{farmerData?.name || user.displayName}</h3>
-              <div className="flex items-center gap-2">
-                 <span className="px-2 py-0.5 bg-emerald-600 text-white text-[8px] font-black uppercase tracking-widest rounded-md">GAP CERTIFIED</span>
-                 <p className="text-[10px] text-gray-400 font-bold uppercase tracking-tighter">{farmerData?.province || 'Chimoio, MOZ'}</p>
+           <div className="flex-1 text-center sm:text-left space-y-3">
+              <div className="space-y-1">
+                 <h3 className="font-bold text-2xl text-emerald-950 tracking-tight">{farmerData?.name || user.displayName}</h3>
+                 <div className="flex items-center justify-center sm:justify-start gap-2">
+                    <span className="px-2 py-0.5 bg-emerald-600 text-white text-[8px] font-black uppercase tracking-widest rounded-md">GAP CERTIFIED</span>
+                    <div className="flex items-center gap-1 text-gray-400">
+                       <MapPin className="w-3 h-3" />
+                       <p className="text-[10px] text-gray-400 font-bold uppercase tracking-tighter">{farmerData?.province || 'Chimoio, MOZ'}</p>
+                    </div>
+                 </div>
               </div>
               {farmerData?.bio && (
-                <p className="text-xs text-gray-500 mt-2 line-clamp-2 italic leading-relaxed">
-                  "{farmerData.bio}"
-                </p>
+                <div className="bg-emerald-50/50 p-4 rounded-2xl border border-emerald-100/50 relative">
+                   <p className="text-xs text-emerald-800 italic leading-relaxed text-left">
+                     "{farmerData.bio}"
+                   </p>
+                </div>
               )}
            </div>
         </div>
