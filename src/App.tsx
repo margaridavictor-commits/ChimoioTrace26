@@ -27,7 +27,8 @@ import {
   Sparkles,
   LogOut,
   Trash2,
-  Home
+  Home,
+  Globe
 } from 'lucide-react';
 import { cn, formatDate } from './lib/utils';
 import { auth, db } from './lib/firebase';
@@ -826,6 +827,14 @@ function HomeView({ onExplore, onSelectBatch }: { onExplore: () => void, onSelec
           alt="Agriculture" 
           className="w-full h-72 object-cover rounded-[2.5rem] group-hover:scale-105 transition-transform duration-700"
         />
+        
+        {/* Beautiful Floating Sticker / Seal of Authenticity as requested ("use another sticker") */}
+        <div className="absolute top-4 right-4 z-20 bg-amber-400 text-emerald-950 p-3.5 rounded-full flex flex-col items-center justify-center border-2 border-dashed border-amber-600 shadow-xl select-none rotate-12 scale-90 sm:scale-100 hover:rotate-6 transition-transform duration-300 w-24 h-24 text-center">
+          <Globe className="w-5 h-5 text-emerald-900 mb-1 animate-pulse" />
+          <span className="text-[8px] font-black tracking-tighter uppercase leading-none text-emerald-950">100% Rastreável</span>
+          <span className="text-[6px] font-bold tracking-tight uppercase text-emerald-900 leading-none mt-0.5">Chimoio • MOZ</span>
+        </div>
+
         <div className="absolute bottom-6 left-6 right-6 z-20 space-y-3">
            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/30 backdrop-blur-md text-white border border-white/20 text-[9px] font-bold uppercase tracking-wider">
              <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" /> Global GAP Moçambique
