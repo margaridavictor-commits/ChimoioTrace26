@@ -34,6 +34,9 @@ export interface Batch {
   certificationId?: string;
   journey: { timestamp: string; location: string; description: string }[];
   qrCode: string;
+  pesticides?: string;
+  productType?: 'vegetal' | 'fruta' | 'grão';
+  photoUrl?: string;
 }
 
 export interface AuditLog {
