@@ -64,6 +64,35 @@
         "notes": { "type": "string" }
       },
       "required": ["logId", "farmerId", "certifierId", "date", "result"]
+    },
+    "FarmerView": {
+      "title": "Farmer View Log",
+      "description": "Log of consumer users who have viewed a farmer's batches",
+      "type": "object",
+      "properties": {
+        "viewId": { "type": "string" },
+        "userId": { "type": "string" },
+        "farmerId": { "type": "string" },
+        "userDisplayName": { "type": "string" },
+        "viewedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["viewId", "userId", "farmerId", "viewedAt"]
+    },
+    "Notification": {
+      "title": "Notification Log",
+      "description": "Consumer notifications for newly added batches from viewed farmers",
+      "type": "object",
+      "properties": {
+        "notificationId": { "type": "string" },
+        "targetUserId": { "type": "string" },
+        "farmerId": { "type": "string" },
+        "farmerName": { "type": "string" },
+        "cropType": { "type": "string" },
+        "batchId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "read": { "type": "boolean" }
+      },
+      "required": ["notificationId", "targetUserId", "farmerId", "cropType", "batchId", "createdAt", "read"]
     }
   },
   "firestore": {
@@ -82,6 +111,14 @@
     "/audit_logs/{logId}": {
       "schema": "AuditLog",
       "description": "Certification audits"
+    },
+    "/farmer_views/{viewId}": {
+      "schema": "FarmerView",
+      "description": "Tracks consumer views on farmer products"
+    },
+    "/notifications/{notificationId}": {
+      "schema": "Notification",
+      "description": "Holds notifications for logged-in consumers"
     }
   }
 }

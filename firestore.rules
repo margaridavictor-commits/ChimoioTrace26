@@ -82,5 +82,20 @@ service cloud.firestore {
     match /audit_logs/{logId} {
       allow read, create: if request.auth == null || isSignedIn();
     }
+
+    // Farmer views
+    match /farmer_views/{viewId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && (incoming().userId == request.auth.uid);
+      allow update, delete: if isSignedIn() && (existing().userId == request.auth.uid);
+    }
+
+    // Notifications
+    match /notifications/{notificationId} {
+      allow read: if isSignedIn() && (existing().targetUserId == request.auth.uid);
+      allow create: if isSignedIn() && (incoming().farmerId == request.auth.uid);
+      allow update: if isSignedIn() && (existing().targetUserId == request.auth.uid) && incoming().diff(existing()).affectedKeys().hasOnly(['read']);
+      allow delete: if isSignedIn() && (existing().targetUserId == request.auth.uid);
+    }
   }
 }

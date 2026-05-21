@@ -17,18 +17,22 @@ import {
   ArrowRight,
   UserPlus,
   Plus,
+  Check,
   X,
   LocateFixed,
   Mail,
   Edit,
   Save,
   Eye,
+  EyeOff,
   Filter,
   Sparkles,
   LogOut,
   Trash2,
   Home,
-  Globe
+  Globe,
+  Wifi,
+  WifiOff
 } from 'lucide-react';
 import { cn, formatDate } from './lib/utils';
 import { auth, db } from './lib/firebase';
@@ -42,9 +46,10 @@ import {
   GoogleAuthProvider, 
   signOut,
   createUserWithEmailAndPassword,
-  signInWithEmailAndPassword
+  signInWithEmailAndPassword,
+  deleteUser
 } from 'firebase/auth';
-import { doc, getDoc, setDoc, collection, query, where, onSnapshot, updateDoc, deleteDoc } from 'firebase/firestore';
+import { doc, getDoc, getDocs, setDoc, collection, query, where, onSnapshot, updateDoc, deleteDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import type { UserProfile, Batch, Farmer } from './types';
 import { getDocFromServer } from 'firebase/firestore';
@@ -83,6 +88,91 @@ interface ToastMessage {
 }
 
 const TOAST_EVENT = 'app:toast';
+
+export interface NetworkInfo {
+  network: 'mcel' | 'vodacom' | 'movitel' | 'international' | 'none';
+  formatted: string;
+  isValid: boolean;
+  label: string;
+  color: string;
+}
+
+export function parseAndValidatePhone(phone: string): NetworkInfo {
+  const clean = phone.replace(/[^0-9+]/g, '');
+  
+  if (!clean) {
+    return { network: 'none', formatted: '', isValid: false, label: 'Nenhum', color: 'text-gray-400 bg-gray-100 border-gray-200' };
+  }
+
+  // Check if it starts with +
+  if (clean.startsWith('+')) {
+    const withoutPlus = clean.substring(1);
+    // Is it Mozambique?
+    if (withoutPlus.startsWith('258')) {
+      const mzDigits = withoutPlus.substring(3);
+      if (mzDigits.length === 9) {
+        const prefix2 = mzDigits.substring(0, 2);
+        if (['82', '83'].includes(prefix2)) {
+          return { network: 'mcel', formatted: clean, isValid: true, label: 'M-Cel (Moçambique)', color: 'text-emerald-700 bg-emerald-50 border border-emerald-200' };
+        } else if (['84', '85'].includes(prefix2)) {
+          return { network: 'vodacom', formatted: clean, isValid: true, label: 'Vodacom (Moçambique)', color: 'text-red-700 bg-red-50 border border-red-200' };
+        } else if (['86', '87'].includes(prefix2)) {
+          return { network: 'movitel', formatted: clean, isValid: true, label: 'Movitel (Moçambique)', color: 'text-orange-700 bg-orange-50 border border-orange-200' };
+        }
+      }
+    }
+    // Any other international number
+    const isValidInt = clean.length >= 8 && clean.length <= 15;
+    return { network: 'international', formatted: clean, isValid: isValidInt, label: isValidInt ? 'Internacional' : 'Número incompleto', color: 'text-indigo-700 bg-indigo-50 border border-indigo-200' };
+  }
+
+  // If it starts with 258 (and doesn't have +)
+  if (clean.startsWith('258')) {
+    const mzDigits = clean.substring(3);
+    if (mzDigits.length === 9) {
+      const prefix2 = mzDigits.substring(0, 2);
+      const formatted = `+${clean}`;
+      if (['82', '83'].includes(prefix2)) {
+        return { network: 'mcel', formatted, isValid: true, label: 'M-Cel (Moçambique)', color: 'text-emerald-700 bg-emerald-50 border border-emerald-200' };
+      } else if (['84', '85'].includes(prefix2)) {
+        return { network: 'vodacom', formatted, isValid: true, label: 'Vodacom (Moçambique)', color: 'text-red-700 bg-red-50 border border-red-200' };
+      } else if (['86', '87'].includes(prefix2)) {
+        return { network: 'movitel', formatted, isValid: true, label: 'Movitel (Moçambique)', color: 'text-orange-700 bg-orange-50 border border-orange-200' };
+      }
+    }
+  }
+
+  // If it is 9 digits (Mozambique domestic local user, e.g., "841234567")
+  if (clean.length === 9 && !clean.startsWith('258')) {
+    const prefix2 = clean.substring(0, 2);
+    const formatted = `+258${clean}`;
+    if (['82', '83'].includes(prefix2)) {
+      return { network: 'mcel', formatted, isValid: true, label: 'M-Cel (Moçambique)', color: 'text-emerald-700 bg-emerald-50 border border-emerald-200' };
+    } else if (['84', '85'].includes(prefix2)) {
+      return { network: 'vodacom', formatted, isValid: true, label: 'Vodacom (Moçambique)', color: 'text-red-700 bg-red-50 border border-red-200' };
+    } else if (['86', '87'].includes(prefix2)) {
+      return { network: 'movitel', formatted, isValid: true, label: 'Movitel (Moçambique)', color: 'text-orange-700 bg-orange-50 border border-orange-200' };
+    }
+  }
+
+  // If it's starting with 82, 83, 84, 85, 86, 87 and is typing (between 2 and 9 digits)
+  if (clean.length >= 2 && clean.length <= 9 && !clean.startsWith('258') && !clean.startsWith('+')) {
+    const prefix2 = clean.substring(0, 2);
+    if (['82', '83'].includes(prefix2)) {
+      return { network: 'mcel', formatted: `+258${clean}`, isValid: clean.length === 9, label: 'M-Cel (Moçambique)', color: 'text-emerald-700 bg-emerald-50 border border-emerald-200' };
+    } else if (['84', '85'].includes(prefix2)) {
+      return { network: 'vodacom', formatted: `+258${clean}`, isValid: clean.length === 9, label: 'Vodacom (Moçambique)', color: 'text-red-700 bg-red-50 border border-red-200' };
+    } else if (['86', '87'].includes(prefix2)) {
+      return { network: 'movitel', formatted: `+258${clean}`, isValid: clean.length === 9, label: 'Movitel (Moçambique)', color: 'text-orange-700 bg-orange-50 border border-orange-200' };
+    }
+  }
+
+  // Otherwise, assume international.
+  const hasPlusPrefix = clean.startsWith('+');
+  const formatted = hasPlusPrefix ? clean : `+${clean}`;
+  const isValidInt = clean.length >= 8 && clean.length <= 15;
+  return { network: 'international', formatted, isValid: isValidInt, label: isValidInt ? 'Internacional / Outro' : 'Número incompleto', color: 'text-indigo-700 bg-indigo-50 border border-indigo-200' };
+}
 
 function showToast(message: string, type: 'error' | 'success' | 'info' = 'error') {
   window.dispatchEvent(new CustomEvent(TOAST_EVENT, { detail: { message, type } }));
@@ -325,6 +415,37 @@ export default function App() {
     });
   }, [view]);
 
+  useEffect(() => {
+    if (!user) return;
+
+    const q = query(
+      collection(db, 'notifications'), 
+      where('targetUserId', '==', user.uid),
+      where('read', '==', false)
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      snapshot.docs.forEach(async (docSnap) => {
+        const notif = docSnap.data();
+        
+        showToast(
+          `🔔 Novo Lote! O produtor ${notif.farmerName} registou um novo lote de ${notif.cropType}.`,
+          'info'
+        );
+
+        try {
+          await updateDoc(docSnap.ref, { read: true });
+        } catch (err) {
+          console.error("Error marking notification as read:", err);
+        }
+      });
+    }, (error) => {
+      console.error("Error in notifications subscriber:", error);
+    });
+
+    return unsubscribe;
+  }, [user]);
+
   const loginWithGoogle = async () => {
     try {
       const provider = new GoogleAuthProvider();
@@ -347,12 +468,23 @@ export default function App() {
 
   const handleRegister = async (data: any) => {
     try {
-      const userCredential = await createUserWithEmailAndPassword(auth, data.email, data.password);
+      let emailToUse = data.email?.trim() || '';
+      
+      if (data.noEmail) {
+        const parsed = parseAndValidatePhone(data.phone);
+        if (!parsed.isValid) {
+          showToast('Por favor, insira um número de telemóvel válido.', 'error');
+          return;
+        }
+        emailToUse = `${parsed.formatted}@celular.agrotrace.com`;
+      }
+
+      const userCredential = await createUserWithEmailAndPassword(auth, emailToUse, data.password);
       const firebaseUser = userCredential.user;
 
       const newUser: UserProfile = {
         uid: firebaseUser.uid,
-        email: data.email,
+        email: emailToUse,
         displayName: data.name,
         role: 'farmer',
         phoneNumber: data.phone,
@@ -381,26 +513,41 @@ export default function App() {
     } catch (error: any) {
       console.error('Registration error:', error);
       let message = 'Erro ao realizar o registo.';
-      if (error.code === 'auth/email-already-in-use') message = 'Este email já está em uso.';
+      if (error.code === 'auth/email-already-in-use') message = 'Este email ou número de telemóvel já está em uso.';
       if (error.code === 'auth/weak-password') message = 'A senha deve ter pelo menos 6 caracteres.';
-      if (error.code === 'auth/invalid-email') message = 'Email inválido.';
+      if (error.code === 'auth/invalid-email') message = 'Email ou telemóvel inválido.';
       showToast(message, 'error');
       throw error;
     }
   };
 
   const handleEmailLogin = async (data: any) => {
+    let emailToUse = data.email.trim();
+    if (!emailToUse.includes('@')) {
+      const parsed = parseAndValidatePhone(emailToUse);
+      if (parsed.isValid) {
+        emailToUse = `${parsed.formatted}@celular.agrotrace.com`;
+      } else {
+        showToast('Por favor, introduza um e-mail válido ou telemóvel registado.', 'error');
+        return;
+      }
+    }
     try {
-      await signInWithEmailAndPassword(auth, data.email, data.password);
+      await signInWithEmailAndPassword(auth, emailToUse, data.password);
       setView('app');
       setActiveTab('farmer');
     } catch (error: any) {
-      console.error('Login error:', error);
-      let message = 'E-mail ou senha incorretos.';
-      if (error.code === 'auth/user-not-found') message = 'Usuário não encontrado.';
-      if (error.code === 'auth/wrong-password') message = 'Senha incorreta.';
+      let message = 'E-mail/Telemóvel ou senha incorretos.';
+      if (error.code === 'auth/user-not-found') {
+        message = 'Usuário não encontrado.';
+      } else if (error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
+        message = 'E-mail/Telemóvel ou senha incorretos.';
+      } else if (error.code === 'auth/invalid-email') {
+        message = 'E-mail ou telemóvel inválido.';
+      } else {
+        console.error('Login error:', error);
+      }
       showToast(message, 'error');
-      throw error;
     }
   };
 
@@ -581,6 +728,12 @@ export default function App() {
                     <h1 className="font-bold text-lg tracking-tight leading-none text-emerald-900">
                       {activeTab === 'consumer' ? (subTab === 'home' ? 'AgroTrace' : subTab === 'map' ? 'Explorar' : subTab === 'scan' ? 'Scanner' : 'Rastreio') : 'Portal Produtor'}
                     </h1>
+                    {!isOnline && (
+                      <div className="flex items-center gap-1 bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-full text-[9px] font-bold tracking-wide uppercase ml-2 animate-pulse" title="Ligação perdida. Os dados exibidos estão em cache e podem não ser em tempo real.">
+                        <WifiOff className="w-3 h-3 text-amber-600 shrink-0" />
+                        <span>Dados em Cache</span>
+                      </div>
+                    )}
                   </div>
                   <span className="text-[10px] font-bold text-emerald-600/60 uppercase tracking-widest leading-none">Chimoio, MOZ</span>
                 </motion.div>
@@ -636,7 +789,7 @@ export default function App() {
                     {subTab === 'trace' && <TraceView scannedBatch={scannedBatch} forceSingleColumn={true} />}
                   </div>
                 ) : (
-                  <FarmerPortal key="farmer" user={user} login={loginWithGoogle} />
+                  <FarmerPortal key="farmer" user={user} login={() => { setView('landing'); setAuthMode('login'); }} logout={logout} />
                 )}
               </AnimatePresence>
             </div>
@@ -738,16 +891,45 @@ function HomeView({ onExplore, onSelectBatch }: { onExplore: () => void, onSelec
   const [batches, setBatches] = useState<Batch[]>([]);
   const [farmers, setFarmers] = useState<Record<string, Farmer>>({});
   const [selectedCategory, setSelectedCategory] = useState<'all' | 'vegetal' | 'fruta' | 'grão'>('all');
+  const [selectedFarmerId, setSelectedFarmerId] = useState<string | null>(null);
+  const [selectedStatus, setSelectedStatus] = useState<'all' | 'harvested' | 'distributing' | 'market'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [manualBatchId, setManualBatchId] = useState('');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Immediate Offline fallback from local device cache
+    try {
+      const cachedBatches = JSON.parse(localStorage.getItem('agrotrace_cached_batches') || '{}');
+      const cachedFarmers = JSON.parse(localStorage.getItem('agrotrace_cached_farmers') || '{}');
+      if (Object.keys(cachedBatches).length > 0) {
+        setBatches(Object.values(cachedBatches));
+        setLoading(false);
+      }
+      if (Object.keys(cachedFarmers).length > 0) {
+        setFarmers(cachedFarmers);
+      }
+    } catch (e) {
+      console.error('Error fetching offline cache:', e);
+    }
+
     // Live subscription of products/batches
     const qBatches = collection(db, 'batches');
     const unsubBatches = onSnapshot(qBatches, (snap) => {
-      setBatches(snap.docs.map(doc => doc.data() as Batch));
+      const liveBatches = snap.docs.map(doc => doc.data() as Batch);
+      setBatches(liveBatches);
       setLoading(false);
+
+      // Save to cache
+      try {
+        const cached = JSON.parse(localStorage.getItem('agrotrace_cached_batches') || '{}');
+        liveBatches.forEach(b => {
+          cached[b.batchId] = b;
+        });
+        localStorage.setItem('agrotrace_cached_batches', JSON.stringify(cached));
+      } catch (e) {
+        console.error(e);
+      }
     }, (error) => {
       console.error("HomeView: Failed to load batches:", error);
       setLoading(false);
@@ -762,6 +944,17 @@ function HomeView({ onExplore, onSelectBatch }: { onExplore: () => void, onSelec
         farmerMap[f.farmerId] = f;
       });
       setFarmers(farmerMap);
+
+      // Save to cache
+      try {
+        const cached = JSON.parse(localStorage.getItem('agrotrace_cached_farmers') || '{}');
+        Object.values(farmerMap).forEach(f => {
+          cached[f.farmerId] = f;
+        });
+        localStorage.setItem('agrotrace_cached_farmers', JSON.stringify(cached));
+      } catch (e) {
+        console.error(e);
+      }
     }, (error) => {
       console.error("HomeView: Failed to load farmers:", error);
     });
@@ -775,15 +968,23 @@ function HomeView({ onExplore, onSelectBatch }: { onExplore: () => void, onSelec
   const handleManualSearchSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!manualBatchId.trim()) return;
-    const cleanId = manualBatchId.trim();
+    const cleanId = manualBatchId.trim().toUpperCase();
     try {
       const docRef = doc(db, 'batches', cleanId);
       const snap = await getDoc(docRef);
       if (snap.exists()) {
-        onSelectBatch(snap.data() as Batch);
+        const data = snap.data() as Batch;
+        onSelectBatch(data);
         showToast('Lote localizado com sucesso!', 'success');
       } else {
-        showToast('Lote não encontrado no sistema AgroTrace. Verifique o código.', 'error');
+        // Fallback search in cache
+        const cached = JSON.parse(localStorage.getItem('agrotrace_cached_batches') || '{}');
+        if (cached[cleanId]) {
+          onSelectBatch(cached[cleanId]);
+          showToast('Lote localizado do cache local!', 'success');
+        } else {
+          showToast('Lote não encontrado. Verifique o código.', 'error');
+        }
       }
     } catch (err) {
       showToast('Erro ao procurar o lote.', 'error');
@@ -793,13 +994,15 @@ function HomeView({ onExplore, onSelectBatch }: { onExplore: () => void, onSelec
   // Filter batches based on state
   const filteredBatches = batches.filter(b => {
     const matchesCategory = selectedCategory === 'all' || b.productType === selectedCategory;
+    const matchesFarmer = !selectedFarmerId || b.farmerId === selectedFarmerId;
+    const matchesStatus = selectedStatus === 'all' || b.status === selectedStatus;
     const farmerName = farmers[b.farmerId]?.name || '';
     const matchesSearch = searchQuery === '' || 
       b.cropType.toLowerCase().includes(searchQuery.toLowerCase()) ||
       b.batchId.toLowerCase().includes(searchQuery.toLowerCase()) ||
       farmerName.toLowerCase().includes(searchQuery.toLowerCase());
 
-    return matchesCategory && matchesSearch;
+    return matchesCategory && matchesFarmer && matchesStatus && matchesSearch;
   });
 
   return (
@@ -848,28 +1051,136 @@ function HomeView({ onExplore, onSelectBatch }: { onExplore: () => void, onSelec
            >
              <MapPin className="w-3.5 h-3.5 text-emerald-600" /> Explorar no Mapa
            </button>
-        </div>
+         </div>
       </section>
 
       {/* Real-time Dynamic Stats */}
-      <section className="grid grid-cols-2 gap-4" id="home-stats-counters">
-        <div className="bg-white p-5 rounded-3xl border border-[#E5E2D9] shadow-sm flex items-center gap-4 hover:border-emerald-500/20 transition-all">
-          <div className="w-12 h-12 bg-emerald-50 rounded-2xl flex items-center justify-center shrink-0">
-            <User className="w-6 h-6 text-emerald-600" />
+      <section className="grid grid-cols-2 xs:grid-cols-4 gap-4" id="home-stats-counters">
+        <div className="bg-white p-4.5 rounded-3xl border border-[#E5E2D9] shadow-sm flex items-center gap-3.5 hover:border-emerald-500/20 transition-all">
+          <div className="w-11 h-11 bg-emerald-50 rounded-2xl flex items-center justify-center shrink-0 border border-emerald-100">
+            <User className="w-5 h-5 text-emerald-600" />
           </div>
           <div>
-            <p className="text-[10px] uppercase font-bold text-[#8C8A84] tracking-wider">Produtores</p>
-            <h4 className="text-2xl font-black text-emerald-950">{Math.max(10, Object.keys(farmers).length)}</h4>
+            <p className="text-[9px] uppercase font-bold text-[#8C8A84] tracking-wider leading-none mb-1">PRODUTORES</p>
+            <h4 className="text-xl font-black text-emerald-950 leading-tight">{Object.keys(farmers).length}</h4>
+            <span className="text-[8px] text-emerald-600 font-bold block leading-none">Ao vivo</span>
           </div>
         </div>
-        <div className="bg-white p-5 rounded-3xl border border-[#E5E2D9] shadow-sm flex items-center gap-4 hover:border-emerald-500/20 transition-all">
-          <div className="w-12 h-12 bg-amber-50 rounded-2xl flex items-center justify-center shrink-0">
-            <Leaf className="w-6 h-6 text-amber-600" />
+        <div className="bg-white p-4.5 rounded-3xl border border-[#E5E2D9] shadow-sm flex items-center gap-3.5 hover:border-emerald-500/20 transition-all">
+          <div className="w-11 h-11 bg-amber-50 rounded-2xl flex items-center justify-center shrink-0 border border-amber-100">
+            <Globe className="w-5 h-5 text-amber-600 animate-pulse" />
           </div>
           <div>
-            <p className="text-[10px] uppercase font-bold text-[#8C8A84] tracking-wider">Lotes Ativos</p>
-            <h4 className="text-2xl font-black text-emerald-950">{Math.max(5, batches.length)}</h4>
+            <p className="text-[9px] uppercase font-bold text-[#8C8A84] tracking-wider leading-none mb-1">NO MERCADO</p>
+            <h4 className="text-xl font-black text-emerald-950 leading-tight">{batches.filter(b => b.status === 'market').length}</h4>
+            <span className="text-[8px] text-amber-600 font-bold block leading-none">Lotes Ativos</span>
           </div>
+        </div>
+        <div className="bg-white p-4.5 rounded-3xl border border-[#E5E2D9] shadow-sm flex items-center gap-3.5 hover:border-emerald-500/20 transition-all">
+          <div className="w-11 h-11 bg-indigo-50 rounded-2xl flex items-center justify-center shrink-0 border border-indigo-100">
+            <History className="w-5 h-5 text-indigo-600" />
+          </div>
+          <div>
+            <p className="text-[9px] uppercase font-bold text-[#8C8A84] tracking-wider leading-none mb-1">EM TRÂNSITO</p>
+            <h4 className="text-xl font-black text-emerald-950 leading-tight">{batches.filter(b => b.status === 'distributing').length}</h4>
+            <span className="text-[8px] text-indigo-600 font-bold block leading-none">Na Estrada</span>
+          </div>
+        </div>
+        <div className="bg-white p-4.5 rounded-3xl border border-[#E5E2D9] shadow-sm flex items-center gap-3.5 hover:border-emerald-500/20 transition-all">
+          <div className="w-11 h-11 bg-yellow-50 rounded-2xl flex items-center justify-center shrink-0 border border-yellow-105">
+            <ShieldCheck className="w-5 h-5 text-yellow-600" />
+          </div>
+          <div>
+            <p className="text-[9px] uppercase font-bold text-[#8C8A84] tracking-wider leading-none mb-1">CERTIFICADOS</p>
+            <h4 className="text-xl font-black text-emerald-950 leading-tight">
+              {Object.values(farmers).filter(f => f.certificationStatus === 'certified').length}
+            </h4>
+            <span className="text-[8px] text-yellow-650 font-bold block leading-none">Selo GAP</span>
+          </div>
+        </div>
+      </section>
+
+      {/* Featured Real-Time Farmers Scrolling Row */}
+      <section className="space-y-3" id="home-realtime-farmers-section">
+        <div className="flex justify-between items-center">
+          <h4 className="font-extrabold text-[#2C2B29] text-xs uppercase tracking-widest leading-none">
+            Produtores Registados <span className="text-emerald-600 font-bold">• Direto de Chimoio</span>
+          </h4>
+          {selectedFarmerId && (
+            <button
+              onClick={() => setSelectedFarmerId(null)}
+              className="text-[9px] font-black uppercase text-red-500 bg-red-50 hover:bg-red-100 px-2 py-1 rounded-xl transition-all"
+            >
+              Ver Todos
+            </button>
+          )}
+        </div>
+        <div className="flex gap-3 overflow-x-auto pb-2.5 pt-0.5 invisible-scrollbar" id="producers-scroll-row">
+          {/* Card "Todos" */}
+          <button
+            onClick={() => setSelectedFarmerId(null)}
+            className={cn(
+              "p-3 rounded-2xl transition-all duration-300 border flex flex-col items-center justify-center text-center w-24 shrink-0 shadow-sm active:scale-95 cursor-pointer",
+              !selectedFarmerId 
+                ? "bg-emerald-900 border-emerald-950 text-white"
+                : "bg-white hover:bg-gray-50 border-gray-200 text-[#5C5A54]"
+            )}
+          >
+            <div className="w-10 h-10 rounded-full bg-emerald-100 border border-emerald-200 text-emerald-800 flex items-center justify-center text-[10px] font-black mb-2">
+              <Globe className="w-5 h-5 shrink-0" />
+            </div>
+            <span className="text-[10px] font-extrabold truncate w-full leading-none">Todos</span>
+            <span className={cn("text-[8px] font-medium block mt-1.5 leading-none", !selectedFarmerId ? "text-emerald-200" : "text-[#7C7A70]")}>
+              {batches.filter(b => b.status === 'market').length} lotes
+            </span>
+          </button>
+
+          {/* Loop over farmers */}
+          {Object.values(farmers).map(f => {
+            const isSelected = selectedFarmerId === f.farmerId;
+            const farmerMarketLots = batches.filter(b => b.farmerId === f.farmerId && b.status === 'market').length;
+            const fallbackAvatar = `https://api.dicebear.com/7.x/avataaars/svg?seed=${f.farmerId}`;
+            
+            return (
+              <button
+                key={f.farmerId}
+                onClick={() => setSelectedFarmerId(isSelected ? null : f.farmerId)}
+                className={cn(
+                  "p-3 rounded-2xl transition-all duration-300 border flex flex-col items-center text-center w-28 shrink-0 shadow-sm relative active:scale-95 cursor-pointer",
+                  isSelected
+                    ? "bg-emerald-50/90 border-emerald-500 ring-2 ring-emerald-500/20 text-[#2C2B29]"
+                    : "bg-white hover:bg-gray-50 border-gray-200 text-[#5C5A54]"
+                )}
+              >
+                {/* Available lot count ribbon */}
+                {farmerMarketLots > 0 && (
+                  <span className="absolute -top-1.5 -right-1.5 bg-emerald-600 text-white text-[7.5px] font-black px-1.5 py-0.5 rounded-full shadow-md animate-bounce">
+                    {farmerMarketLots}
+                  </span>
+                )}
+                
+                <img 
+                  src={f.photoUrl || fallbackAvatar}
+                  alt={f.name}
+                  className="w-10 h-10 object-cover rounded-full border border-gray-150 mb-2 shrink-0 bg-emerald-50"
+                  referrerPolicy="no-referrer"
+                />
+                <span className="text-[10px] font-extrabold truncate w-full leading-none text-emerald-950">{f.name}</span>
+                <span className="text-[8px] font-bold text-gray-400 block mt-1 uppercase tracking-wider truncate w-full leading-none">
+                  {f.province || 'Chimoio, MOZ'}
+                </span>
+
+                {/* Certification indicator */}
+                <div className="mt-1.5">
+                  {f.certificationStatus === 'certified' ? (
+                    <span className="text-[7px] font-black bg-yellow-100 text-yellow-800 px-1 py-0.5 rounded-md uppercase tracking-wider">GAP Certificado</span>
+                  ) : (
+                    <span className="text-[7px] font-medium bg-gray-100 text-gray-500 px-1 py-0.5 rounded-md uppercase tracking-wider">Registado</span>
+                  )}
+                </div>
+              </button>
+            );
+          })}
         </div>
       </section>
 
@@ -924,13 +1235,41 @@ function HomeView({ onExplore, onSelectBatch }: { onExplore: () => void, onSelec
             );
           })}
         </div>
+
+        {/* Real-Time Status Filter Pills */}
+        <div className="flex items-center gap-1.5 bg-gray-150/70 p-1 rounded-2xl w-full max-w-sm" id="status-quick-pills">
+          {[
+            { id: 'all', label: 'Todos os Lotes' },
+            { id: 'market', label: 'Disponíveis no Mercado 🏪' },
+            { id: 'distributing', label: 'Em Trânsito 🚚' }
+          ].map(pill => {
+            const isSelected = selectedStatus === pill.id;
+            return (
+              <button
+                key={pill.id}
+                type="button"
+                onClick={() => setSelectedStatus(pill.id as any)}
+                className={cn(
+                  "flex-1 text-center py-2.5 rounded-xl text-[9.5px] font-black uppercase tracking-wider transition-all duration-200 active:scale-95 cursor-pointer",
+                  isSelected
+                    ? "bg-[#2C2B29] text-white shadow-sm font-black"
+                    : "text-gray-500 hover:text-gray-800"
+                )}
+              >
+                {pill.label}
+              </button>
+            );
+          })}
+        </div>
       </section>
 
       {/* Dynamic List Grid of Farmers and Batches */}
       <section className="space-y-4" id="recent-lots-list-section">
         <div className="flex items-center justify-between">
-           <h4 className="font-extrabold text-sm text-emerald-950 uppercase tracking-widest leading-none">Lotes Disponíveis</h4>
-           <span className="text-[10px] bg-emerald-50 text-emerald-800 border border-emerald-100 font-bold px-2 py-1 rounded-full uppercase">
+           <h4 className="font-extrabold text-sm text-emerald-950 uppercase tracking-widest leading-none">
+             {selectedStatus === 'market' ? 'Lotes no Mercado 🏪' : selectedStatus === 'distributing' ? 'Lotes em Trânsito 🚚' : 'Lotes Disponíveis'}
+           </h4>
+           <span className="text-[10px] bg-emerald-50 text-emerald-800 border border-emerald-100 font-bold px-3 py-1 rounded-full uppercase">
              {filteredBatches.length} Encontrados
            </span>
         </div>
@@ -944,7 +1283,7 @@ function HomeView({ onExplore, onSelectBatch }: { onExplore: () => void, onSelec
           <div className="py-12 text-center bg-gray-50/50 rounded-[2rem] border border-dashed border-[#E5E2D9] px-6" id="empty-batches-placeholder">
             <Leaf className="w-10 h-10 text-gray-300 mx-auto mb-2" />
             <p className="text-xs font-bold text-gray-500">Nenhum lote corresponde à pesquisa</p>
-            <p className="text-[11px] text-gray-400 mt-1">Experimente mudar o filtro de categoria ou redefinir a busca.</p>
+            <p className="text-[11px] text-gray-400 mt-1">Experimente mudar o filtro de categoria/produtor ou redefinir a busca.</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4" id="batches-cards-grid">
@@ -962,7 +1301,7 @@ function HomeView({ onExplore, onSelectBatch }: { onExplore: () => void, onSelec
                   harvested: { text: 'Colhido', class: 'bg-emerald-50 text-emerald-700 border-emerald-100' },
                   distributing: { text: 'Em Trânsito', class: 'bg-indigo-50 text-indigo-700 border-indigo-100' },
                   market: { text: 'Mercado', class: 'bg-amber-50 text-amber-700 border-amber-100' },
-                  consumed: { text: 'Consumido', class: 'bg-gray-100 text-gray-700 border-gray-100' }
+                  consumed: { text: 'Consumido', class: 'bg-gray-100 text-gray-700 border-gray-150' }
                 };
                 const statusInfo = statusBadges[b.status] || { text: b.status, class: 'bg-gray-50 text-gray-600 border-transparent' };
 
@@ -1232,19 +1571,58 @@ function GlobalMapView({ onSelectBatch }: { onSelectBatch: (b: Batch) => void })
 function ScanView({ onResult }: { onResult: (batch: Batch) => void }) {
   const [error, setError] = useState<string | null>(null);
   const [manualId, setManualId] = useState('');
+  const [cachedList, setCachedList] = useState<Batch[]>([]);
+
+  // Fetch standard list of cached batches on mount
+  useEffect(() => {
+    try {
+      const cached = JSON.parse(localStorage.getItem('agrotrace_cached_batches') || '{}');
+      setCachedList(Object.values(cached));
+    } catch (e) {
+      console.error('Error listing offline cached batches:', e);
+    }
+  }, []);
 
   const fetchBatch = async (batchId: string) => {
     try {
       const docRef = doc(db, 'batches', batchId);
       const snap = await getDoc(docRef);
       if (snap.exists()) {
-        onResult(snap.data() as Batch);
-        showToast('Lote localizado com sucesso!', 'success');
+        const b = snap.data() as Batch;
+        onResult(b);
+        // Add to cache
+        try {
+          const cached = JSON.parse(localStorage.getItem('agrotrace_cached_batches') || '{}');
+          cached[batchId] = b;
+          localStorage.setItem('agrotrace_cached_batches', JSON.stringify(cached));
+          setCachedList(Object.values(cached));
+        } catch (e) {
+          console.error(e);
+        }
+        showToast('Lote localizado com sucesso de forma online!', 'success');
       } else {
-        setError("Lote não encontrado no sistema AgroTrace. Por favor, verifique o código.");
+        // Look up in cache even if snap doesn't exist (offline fallback list)
+        const cached = JSON.parse(localStorage.getItem('agrotrace_cached_batches') || '{}');
+        if (cached[batchId]) {
+          onResult(cached[batchId]);
+          showToast('Lote recuperado do cache offline local!', 'success');
+        } else {
+          setError("Lote não encontrado no sistema AgroTrace. Por favor, verifique o código ou a sua ligação.");
+        }
       }
     } catch (err) {
-      setError("Erro ao comunicar com o servidor.");
+      // Offline fallback: check cache if network error
+      try {
+        const cached = JSON.parse(localStorage.getItem('agrotrace_cached_batches') || '{}');
+        if (cached[batchId]) {
+          onResult(cached[batchId]);
+          showToast('Modo Offline: Lote recuperado do cache local!', 'success');
+          return;
+        }
+      } catch (e) {
+        console.error(e);
+      }
+      setError("Sem conexão ao servidor AgroTrace. Não foi possível localizar este lote localmente.");
     }
   };
 
@@ -1252,7 +1630,7 @@ function ScanView({ onResult }: { onResult: (batch: Batch) => void }) {
     e.preventDefault();
     if (!manualId.trim()) return;
     setError(null);
-    fetchBatch(manualId.trim());
+    fetchBatch(manualId.trim().toUpperCase());
   };
 
   useEffect(() => {
@@ -1336,6 +1714,35 @@ function ScanView({ onResult }: { onResult: (batch: Batch) => void }) {
             <p className="text-xs font-bold leading-snug">{error}</p>
           </div>
         )}
+
+        {/* Cached Batches Section for Offline capability */}
+        {cachedList.length > 0 && (
+          <div className="pt-6 border-t border-[#E5E2D9] text-left" id="cached-batches-offline-list">
+            <h4 className="text-[10px] font-extrabold text-[#7C7A74] uppercase tracking-widest mb-4 flex items-center justify-between">
+              <span>Lotes Disponíveis Offline ({cachedList.length})</span>
+              <span className="bg-amber-100 text-amber-800 text-[8px] font-black px-1.5 py-0.5 rounded-md uppercase tracking-wide">Cache Ativo</span>
+            </h4>
+            <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+              {cachedList.map((cb) => (
+                <button
+                  type="button"
+                  key={cb.batchId}
+                  onClick={() => onResult(cb)}
+                  className="w-full bg-gray-50 hover:bg-emerald-50/45 border border-gray-150 hover:border-emerald-200 px-3 py-2.5 rounded-2xl transition-all flex items-center justify-between text-left group active:scale-[0.99] cursor-pointer"
+                >
+                  <div className="min-w-0 flex-1 pr-2">
+                    <div className="flex items-center gap-2">
+                      <span className="font-extrabold text-xs text-[#2C2B29] group-hover:text-emerald-850">{cb.cropType}</span>
+                      <span className="font-mono text-[9px] text-gray-400">({cb.batchId})</span>
+                    </div>
+                    <p className="text-[10px] text-gray-500 mt-0.5">Colheita: {formatDate(cb.harvestDate)} • Qtd: {cb.quantity}</p>
+                  </div>
+                  <ChevronLeft className="w-4 h-4 text-gray-400 group-hover:text-emerald-600 rotate-180 transition-transform duration-200 group-hover:translate-x-1 shrink-0" />
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </motion.div>
   );
@@ -1361,12 +1768,93 @@ function MapResizeTrigger() {
 
 function TraceView({ scannedBatch, forceSingleColumn = false }: { scannedBatch: Batch | null, forceSingleColumn?: boolean }) {
   const [farmer, setFarmer] = useState<Farmer | null>(null);
+  const [isOffline, setIsOffline] = useState(!navigator.onLine);
+  const [simulatedOffline, setSimulatedOffline] = useState(false);
 
+  // Active offline state triggers if physical connection is lost or user forces simulated offline mode
+  const activeOffline = isOffline || simulatedOffline;
+
+  // Sync actual online/offline status
+  useEffect(() => {
+    const handleOnline = () => setIsOffline(false);
+    const handleOffline = () => setIsOffline(true);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+  // Guarantee that whatever scannedBatch is parsed, we automatically cache it on local storage
   useEffect(() => {
     if (scannedBatch) {
-      // Use onSnapshot for real-time and offline availability
-      const unsubscribe = onSnapshot(doc(db, 'farmers', scannedBatch.farmerId), (doc) => {
-        if (doc.exists()) setFarmer(doc.data() as Farmer);
+      try {
+        const cachedBatches = JSON.parse(localStorage.getItem('agrotrace_cached_batches') || '{}');
+        cachedBatches[scannedBatch.batchId] = scannedBatch;
+        localStorage.setItem('agrotrace_cached_batches', JSON.stringify(cachedBatches));
+      } catch (e) {
+        console.error('Error saving batch copy to device cache:', e);
+      }
+    }
+  }, [scannedBatch]);
+
+  // Register that the logged-in user viewed batches from this farmer
+  useEffect(() => {
+    if (scannedBatch && auth.currentUser) {
+      const curUser = auth.currentUser;
+      const viewId = `${curUser.uid}_${scannedBatch.farmerId}`;
+      const viewRef = doc(db, 'farmer_views', viewId);
+      setDoc(viewRef, {
+        viewId,
+        userId: curUser.uid,
+        farmerId: scannedBatch.farmerId,
+        userDisplayName: curUser.displayName || curUser.email || 'Consumidor',
+        viewedAt: new Date().toISOString()
+      }, { merge: true }).catch(err => {
+        console.error('Error logging farmer view:', err);
+      });
+    }
+  }, [scannedBatch]);
+
+  // Handle Loading/fetching of farmer dataset, integrated with offline fallback from local cache
+  useEffect(() => {
+    if (scannedBatch) {
+      // Step A: Instant check for local storage cached farmer
+      try {
+        const cachedFarmers = JSON.parse(localStorage.getItem('agrotrace_cached_farmers') || '{}');
+        if (cachedFarmers[scannedBatch.farmerId]) {
+          setFarmer(cachedFarmers[scannedBatch.farmerId]);
+        }
+      } catch (e) {
+        console.error('Error listing offline cached farmers:', e);
+      }
+
+      // Step B: Regular reactive snapshot mapping
+      const unsubscribe = onSnapshot(doc(db, 'farmers', scannedBatch.farmerId), (docSnap) => {
+        if (docSnap.exists()) {
+          const fData = docSnap.data() as Farmer;
+          setFarmer(fData);
+          // Cache the loaded data
+          try {
+            const cachedFarmers = JSON.parse(localStorage.getItem('agrotrace_cached_farmers') || '{}');
+            cachedFarmers[scannedBatch.farmerId] = fData;
+            localStorage.setItem('agrotrace_cached_farmers', JSON.stringify(cachedFarmers));
+          } catch (e) {
+            console.error(e);
+          }
+        }
+      }, (error) => {
+        console.warn('Network offline or denied snapshot read fallback to localStorage:', error);
+        // Step C: If snapshots fails because of connection status, use Cache again
+        try {
+          const cachedFarmers = JSON.parse(localStorage.getItem('agrotrace_cached_farmers') || '{}');
+          if (cachedFarmers[scannedBatch.farmerId]) {
+            setFarmer(cachedFarmers[scannedBatch.farmerId]);
+          }
+        } catch (e) {
+          console.error(e);
+        }
       });
       return unsubscribe;
     }
@@ -1388,6 +1876,62 @@ function TraceView({ scannedBatch, forceSingleColumn = false }: { scannedBatch: 
         forceSingleColumn ? "grid-cols-1" : "grid-cols-1 lg:grid-cols-3 lg:gap-8"
       )}
     >
+      {/* Offline Status Indicator Bar */}
+      <div className={cn(
+        "col-span-1 flex flex-col sm:flex-row justify-between items-center gap-4 p-5 rounded-3xl border shadow-sm transition-all duration-300",
+        forceSingleColumn ? "" : "lg:col-span-3",
+        activeOffline 
+          ? "bg-amber-50/70 border-amber-200/60" 
+          : "bg-emerald-50/40 border-emerald-100/50"
+      )}>
+        <div className="flex items-center gap-3.5 text-left w-full sm:w-auto">
+          <div className={cn(
+            "p-3 rounded-2xl flex items-center justify-center shrink-0 border shadow-inner",
+            activeOffline 
+              ? "bg-amber-100 border-amber-200 text-amber-700 font-bold" 
+              : "bg-emerald-100 border-emerald-200 text-emerald-700 font-bold"
+          )}>
+            {activeOffline ? <WifiOff className="w-5 h-5 animate-pulse" /> : <Wifi className="w-5 h-5 text-emerald-600" />}
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h5 className="font-extrabold text-[#2C2B29] text-sm uppercase tracking-wide leading-none">
+                {activeOffline ? "Acesso Completamente Offline" : "Sincronização em Tempo Real"}
+              </h5>
+              <span className={cn(
+                "w-2.5 h-2.5 rounded-full inline-block",
+                activeOffline ? "bg-amber-500 animate-ping" : "bg-emerald-500"
+              )} />
+            </div>
+            <p className="text-xs text-gray-500 mt-1 leading-normal max-w-2xl">
+              {activeOffline 
+                ? "Dispositivo offline. Exibindo informações detalhadas e históricos de movimentação do produto a partir dos dados guardados localmente." 
+                : "A sua ligação com a rede AgroTrace está ativa. Todos os passos da cadeia logística estão sincronizados com segurança."}
+            </p>
+          </div>
+        </div>
+        <button
+          onClick={() => setSimulatedOffline(!simulatedOffline)}
+          className={cn(
+            "w-full sm:w-auto px-4.5 py-3 text-[10px] font-black uppercase tracking-widest rounded-2xl transition-all shadow-sm active:scale-95 cursor-pointer flex items-center justify-center gap-2 shrink-0 border-b-2",
+            simulatedOffline 
+              ? "bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-800"
+              : "bg-amber-500 hover:bg-amber-600 text-white border-amber-700"
+          )}
+          title={simulatedOffline ? "Voltar ao estado normal online" : "Testar comportamento offline com cache do dispositivo"}
+        >
+          {simulatedOffline ? (
+            <>
+              <Wifi className="w-4 h-4" /> Restaurar Online
+            </>
+          ) : (
+            <>
+              <WifiOff className="w-4 h-4" /> Forçar Simulação Offline
+            </>
+          )}
+        </button>
+      </div>
+
       {/* Left: Product Info */}
       <div className={cn("space-y-6", forceSingleColumn ? "" : "lg:col-span-1")}>
         <div className="bg-white p-5 sm:p-8 rounded-3xl border border-[#E5E2D9] shadow-sm space-y-4">
@@ -1436,27 +1980,50 @@ function TraceView({ scannedBatch, forceSingleColumn = false }: { scannedBatch: 
         {farmer && (
           <div className="bg-white p-5 sm:p-8 rounded-3xl border border-[#E5E2D9] shadow-sm space-y-4">
             <div className="flex items-center gap-4">
-              <img src={farmer.photoUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${farmer.farmerId}`} className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl object-cover bg-emerald-50 shrink-0" />
+              <img src={farmer.photoUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${farmer.farmerId}`} className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl object-cover bg-emerald-50 shrink-0 border border-emerald-100 shadow-sm" alt={farmer.name} />
               <div className="min-w-0">
-                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">Produtor</p>
-                <h4 className="text-base sm:text-lg font-bold truncate">{farmer.name}</h4>
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">Produtor Autorizado</p>
+                <h4 className="text-base sm:text-lg font-bold truncate text-emerald-950">{farmer.name}</h4>
                 <p className="text-xs text-emerald-600 flex items-center gap-1">
                    <MapPin className="w-3 h-3 shrink-0" /> <span className="truncate">{farmer.province || 'Chimoio, Moçambique'}</span>
                 </p>
               </div>
             </div>
+
             {farmer.bio && (
-              <div className="pt-3 border-t border-gray-50">
-                <p className="text-xs text-gray-500 leading-relaxed italic">"{farmer.bio}"</p>
+              <div className="pt-3 border-t border-gray-100">
+                <p className="text-xs text-gray-600 leading-relaxed italic bg-emerald-50/10 p-3 rounded-xl border border-emerald-100/10">"{farmer.bio}"</p>
               </div>
             )}
-            <div className="pt-2 flex items-center gap-2">
-               <div className={cn(
-                 "px-2 py-1 rounded-md text-[9px] sm:text-[10px] font-black uppercase tracking-widest leading-none",
-                 farmer.certificationStatus === 'certified' ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"
-               )}>
-                 {farmer.certificationStatus === 'certified' ? 'Certificado GAP' : 'Certificação Pendente'}
+
+            <div className="pt-2 space-y-2 border-t border-gray-100">
+               <div className="flex flex-wrap gap-2">
+                  <div className={cn(
+                    "px-2 py-1 rounded-md text-[9px] sm:text-[10px] font-black uppercase tracking-widest leading-none text-white shadow-sm",
+                    (farmer.certificationStatus === 'certified' || !farmer.certificationStatus) ? "bg-emerald-600" :
+                    farmer.certificationStatus === 'pending' ? "bg-amber-500" :
+                    farmer.certificationStatus === 'expired' ? "bg-red-500" : "bg-gray-500"
+                  )}>
+                     {(farmer.certificationStatus === 'certified' || !farmer.certificationStatus) ? 'Certificado GAP' :
+                      farmer.certificationStatus === 'pending' ? 'Certificação Pendente' :
+                      farmer.certificationStatus === 'expired' ? 'Certificado Expirado' : 'Sem Certificado'}
+                  </div>
+                  
+                  {farmer.gapId && (
+                    <div className="bg-gray-50 text-gray-650 px-2 py-1 rounded-md text-[9px] sm:text-[10px] font-mono leading-none border border-gray-200">
+                      GGN: {farmer.gapId}
+                    </div>
+                  )}
                </div>
+
+               {farmer.phoneNumber && (
+                 <a 
+                   href={`tel:${farmer.phoneNumber}`}
+                   className="w-full flex items-center justify-center gap-2 py-2 px-3 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold rounded-xl transition-all text-xs border border-emerald-100"
+                 >
+                   <Phone className="w-3.5 h-3.5 text-emerald-600" /> Direct Trade: Ligar ao Produtor
+                 </a>
+               )}
             </div>
           </div>
         )}
@@ -1464,51 +2031,71 @@ function TraceView({ scannedBatch, forceSingleColumn = false }: { scannedBatch: 
 
       {/* Middle/Right: Map & Timeline */}
       <div className={cn("space-y-6", forceSingleColumn ? "" : "lg:col-span-2 sm:space-y-8")}>
-        <div className="h-[280px] sm:h-[400px] w-full bg-gray-100 rounded-[2rem] sm:rounded-[3rem] overflow-hidden border border-[#E5E2D9] relative flex items-center justify-center z-0 group">
-          <MapContainer 
-            center={[scannedBatch.location.lat, scannedBatch.location.lng]} 
-            zoom={14} 
-            style={{ width: '100%', height: '100%' }}
-            scrollWheelZoom={false}
-          >
-            <TileLayer
-              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-            />
-            <MapResizeTrigger />
-            <Marker position={[scannedBatch.location.lat, scannedBatch.location.lng]} icon={L.divIcon({
-              className: 'custom-div-icon',
-              html: `<div class="relative">
-                <div class="absolute -top-10 -left-5 bg-emerald-600 text-white p-2 rounded-full border-4 border-white shadow-2xl animate-bounce">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 21 8 22"></path><path d="M14.1 6a7 7 0 0 1-1.1 4"></path><path d="M9.4 14a7 7 0 0 0-1.1-4"></path><circle cx="12" cy="12" r="10"></circle><path d="m16 8-4-4-4 4"></path><path d="M12 4v12"></path></svg>
-                </div>
-                <div class="w-3 h-3 bg-emerald-600 rounded-full border-2 border-white shadow-lg absolute -top-1 -left-1"></div>
-              </div>`,
-              iconSize: [30, 42],
-              iconAnchor: [15, 42]
-            })}>
-              <Popup className="custom-popup">
-                <div className="p-2">
-                  <div className="font-bold text-emerald-900 text-base mb-1">{scannedBatch.cropType}</div>
-                  <div className="text-[11px] text-gray-500 flex items-center gap-1">
-                    <MapPin className="w-3 h-3" /> Chimoio, Moçambique
+        <div className="h-[280px] sm:h-[400px] w-full bg-[#FAF9F5] rounded-[2rem] sm:rounded-[3rem] overflow-hidden border border-[#E5E2D9] relative flex flex-col items-center justify-center z-0 group p-6 text-center">
+          {activeOffline ? (
+            <div className="space-y-4 max-w-sm">
+              <div className="w-16 h-16 bg-amber-50 rounded-full flex items-center justify-center mx-auto border border-amber-100 shadow-sm">
+                <MapPin className="w-8 h-8 text-amber-600 animate-bounce" />
+              </div>
+              <h4 className="text-base font-extrabold text-[#2C2B29] uppercase tracking-wider">Localização Registada</h4>
+              <p className="text-xs text-gray-500 leading-relaxed">
+                As coordenadas geográficas seguras deste lote foram verificadas e encontram-se salvas no cache do seu dispositivo:
+              </p>
+              <div className="bg-white px-4 py-2 rounded-xl border border-gray-150 inline-block font-mono text-xs text-[#2C2B29]">
+                Lat: {scannedBatch.location.lat.toFixed(6)} • Lng: {scannedBatch.location.lng.toFixed(6)}
+              </div>
+              <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest leading-none pt-2">
+                Mapa Interativo suspenso em modo offline
+              </p>
+            </div>
+          ) : (
+            <MapContainer 
+              center={[scannedBatch.location.lat, scannedBatch.location.lng]} 
+              zoom={14} 
+              style={{ width: '100%', height: '100%' }}
+              scrollWheelZoom={false}
+            >
+              <TileLayer
+                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+              />
+              <MapResizeTrigger />
+              <Marker position={[scannedBatch.location.lat, scannedBatch.location.lng]} icon={L.divIcon({
+                className: 'custom-div-icon',
+                html: `<div class="relative">
+                  <div class="absolute -top-10 -left-5 bg-emerald-600 text-white p-2 rounded-full border-4 border-white shadow-2xl animate-bounce">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 21 8 22"></path><path d="M14.1 6a7 7 0 0 1-1.1 4"></path><path d="M9.4 14a7 7 0 0 0-1.1-4"></path><circle cx="12" cy="12" r="10"></circle><path d="m16 8-4-4-4 4"></path><path d="M12 4v12"></path></svg>
                   </div>
-                  <div className="mt-2 pt-2 border-t border-gray-100 text-[9px] font-bold text-emerald-600 uppercase tracking-wider">Origem Certificada</div>
-                </div>
-              </Popup>
-            </Marker>
-          </MapContainer>
+                  <div class="w-3 h-3 bg-emerald-600 rounded-full border-2 border-white shadow-lg absolute -top-1 -left-1"></div>
+                </div>`,
+                iconSize: [30, 42],
+                iconAnchor: [15, 42]
+              })}>
+                <Popup className="custom-popup">
+                  <div className="p-2">
+                    <div className="font-bold text-emerald-900 text-base mb-1">{scannedBatch.cropType}</div>
+                    <div className="text-[11px] text-gray-500 flex items-center gap-1">
+                      <MapPin className="w-3 h-3" /> Chimoio, Moçambique
+                    </div>
+                    <div className="mt-2 pt-2 border-t border-gray-100 text-[9px] font-bold text-emerald-600 uppercase tracking-wider">Origem Certificada</div>
+                  </div>
+                </Popup>
+              </Marker>
+            </MapContainer>
+          )}
 
           {/* Simple Compact Legend Overlay (Perfect on Mobile too!) */}
-          <div className="absolute top-4 left-4 z-10 flex flex-col gap-2 pointer-events-none select-none">
-             <div className="bg-white/95 backdrop-blur-md px-3 py-1.5 rounded-xl shadow-md border border-gray-100/50 text-[10px] font-bold leading-none flex items-center gap-2">
-               <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
-               <span className="text-emerald-900 uppercase tracking-widest">Origem: Chimoio Zone B</span>
-             </div>
-          </div>
+          {!activeOffline && (
+            <div className="absolute top-4 left-4 z-10 flex flex-col gap-2 pointer-events-none select-none">
+               <div className="bg-white/95 backdrop-blur-md px-3 py-1.5 rounded-xl shadow-md border border-gray-100/50 text-[10px] font-bold leading-none flex items-center gap-2">
+                 <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
+                 <span className="text-emerald-900 uppercase tracking-widest">Origem: Chimoio Zone B</span>
+               </div>
+            </div>
+          )}
 
           {/* Large legend overlay ONLY on wide layout (not forced single-column) */}
-          {!forceSingleColumn && (
+          {!activeOffline && !forceSingleColumn && (
             <div className="absolute bottom-6 right-6 z-10 hidden sm:block">
               <div className="bg-white/95 backdrop-blur p-4 rounded-[2rem] shadow-xl border border-white/20 space-y-3 min-w-[160px]">
                 <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest border-b border-gray-100 pb-2">Legenda do Mapa</p>
@@ -1573,7 +2160,7 @@ function TraceView({ scannedBatch, forceSingleColumn = false }: { scannedBatch: 
   );
 }
 
-function FarmerPortal({ user, login }: { user: UserProfile | null, login: () => void }) {
+function FarmerPortal({ user, login, logout }: { user: UserProfile | null, login: () => void, logout: () => void }) {
   const [batches, setBatches] = useState<Batch[]>([]);
   const [showAdd, setShowAdd] = useState(false);
   const [showEditProfile, setShowEditProfile] = useState(false);
@@ -1631,8 +2218,51 @@ function FarmerPortal({ user, login }: { user: UserProfile | null, login: () => 
 
   const [filter, setFilter] = useState<'all' | '30d' | '6m' | '1y'>('all');
   const [statusFilter, setStatusFilter] = useState<'all' | 'harvested' | 'distributing' | 'market'>('all');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showGuide, setShowGuide] = useState(() => {
+    return localStorage.getItem('farmer_guide_visible') !== 'false';
+  });
+
+  const updateBatchStatus = async (batchId: string, newStatus: string) => {
+    try {
+      const batch = batches.find(b => b.batchId === batchId);
+      const currentJourney = batch && batch.journey ? [...batch.journey] : [];
+      let newStepDesc = '';
+      const newStepLocation = farmerData?.province || 'Chimoio, MOZ';
+      
+      if (newStatus === 'distributing') {
+        newStepDesc = 'Lote despachado para trânsito/distribuição. Transporte iniciado para os centros logísticos selecionados.';
+      } else if (newStatus === 'market') {
+        newStepDesc = 'Lote entregue com sucesso e colocado em exposição para os consumidores finais no mercado.';
+      } else if (newStatus === 'consumed') {
+        newStepDesc = 'Ciclo de vendas e consumo do lote finalizado com sucesso.';
+      }
+      
+      if (newStepDesc) {
+        currentJourney.push({
+          timestamp: new Date().toISOString(),
+          location: newStepLocation,
+          description: newStepDesc
+        });
+      }
+      
+      const batchRef = doc(db, 'batches', batchId);
+      await updateDoc(batchRef, { 
+        status: newStatus,
+        journey: currentJourney
+      });
+      showToast('Status do lote atualizado!', 'success');
+    } catch (e) {
+      console.error('Error updating status:', e);
+      showToast('Erro ao atualizar o status.', 'error');
+    }
+  };
 
   const filteredBatches = batches.filter(batch => {
+    const searchMatch = searchQuery.trim() === '' || 
+      batch.cropType.toLowerCase().includes(searchQuery.toLowerCase()) || 
+      batch.batchId.toLowerCase().includes(searchQuery.toLowerCase());
+
     // Time filter
     let timeMatch = true;
     if (filter !== 'all') {
@@ -1652,7 +2282,7 @@ function FarmerPortal({ user, login }: { user: UserProfile | null, login: () => 
       statusMatch = batch.status === statusFilter;
     }
 
-    return timeMatch && statusMatch;
+    return searchMatch && timeMatch && statusMatch;
   });
 
   if (!user) {
@@ -1685,7 +2315,7 @@ function FarmerPortal({ user, login }: { user: UserProfile | null, login: () => 
             className="p-3 bg-gray-50 rounded-2xl text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 active:scale-90 transition-all shadow-sm"
             title="Editar Perfil"
            >
-             <UserPlus className="w-5 h-5" />
+             <Edit className="w-5 h-5" />
            </button>
         </div>
 
@@ -1712,7 +2342,16 @@ function FarmerPortal({ user, login }: { user: UserProfile | null, login: () => 
               <div className="space-y-1">
                  <h3 className="font-bold text-2xl text-emerald-950 tracking-tight">{farmerData?.name || user.displayName}</h3>
                  <div className="flex items-center justify-center sm:justify-start gap-2">
-                    <span className="px-2 py-0.5 bg-emerald-600 text-white text-[8px] font-black uppercase tracking-widest rounded-md">GAP CERTIFIED</span>
+                    <span className={cn(
+                      "px-2 py-0.5 text-[8px] font-black uppercase tracking-widest rounded-md text-white shadow-sm",
+                      (farmerData?.certificationStatus === 'certified' || !farmerData?.certificationStatus) ? "bg-emerald-600" :
+                      farmerData?.certificationStatus === 'pending' ? "bg-amber-500" :
+                      farmerData?.certificationStatus === 'expired' ? "bg-red-500" : "bg-gray-500"
+                    )}>
+                      {(farmerData?.certificationStatus === 'certified' || !farmerData?.certificationStatus) ? 'GAP CERTIFIED' :
+                       farmerData?.certificationStatus === 'pending' ? 'GAP PENDENTE' :
+                       farmerData?.certificationStatus === 'expired' ? 'GAP EXPIRADO' : 'SEM REGISTO'}
+                    </span>
                     <div className="flex items-center gap-1 text-gray-400">
                        <MapPin className="w-3 h-3" />
                        <p className="text-[10px] text-gray-400 font-bold uppercase tracking-tighter">{farmerData?.province || 'Chimoio, MOZ'}</p>
@@ -1729,116 +2368,259 @@ function FarmerPortal({ user, login }: { user: UserProfile | null, login: () => 
            </div>
         </div>
 
-        <div className="mt-6 pt-6 border-t border-gray-100 grid grid-cols-3 gap-4">
-           <div className="text-center">
-              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">Lotes</p>
-              <p className="font-black text-xl text-emerald-950">{batches.length}</p>
-           </div>
-           <div className="text-center border-x border-gray-100">
-              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">Status</p>
-              <p className="font-black text-xl text-emerald-600">Ativo</p>
-           </div>
-           <div className="text-center">
-              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">Expira</p>
-              <p className="font-black text-xl text-amber-600">12/26</p>
-           </div>
+        <div className="mt-6 pt-6 border-t border-gray-100 grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="bg-emerald-50/40 p-4 rounded-2xl border border-emerald-100/30 text-center flex flex-col justify-center items-center shadow-sm hover:scale-[1.02] transition-transform">
+             <div className="w-8 h-8 bg-emerald-100/80 rounded-xl flex items-center justify-center mb-1.5 shadow-sm">
+                <Leaf className="w-4 h-4 text-emerald-600" />
+             </div>
+             <span className="text-[9px] font-bold text-emerald-800/80 uppercase tracking-wider block">Lotes</span>
+             <span className="font-black text-lg text-emerald-950 leading-none mt-0.5">{batches.length}</span>
+          </div>
+
+          <div className="bg-blue-50/40 p-4 rounded-2xl border border-blue-100/30 text-center flex flex-col justify-center items-center shadow-sm hover:scale-[1.02] transition-transform">
+             <div className="w-8 h-8 bg-blue-100/80 rounded-xl flex items-center justify-center mb-1.5 shadow-sm">
+                <MapPin className="w-4 h-4 text-blue-600" />
+             </div>
+             <span className="text-[9px] font-bold text-blue-800/80 uppercase tracking-wider block">Província</span>
+             <span className="font-black text-xs text-blue-900 leading-none mt-1 truncate max-w-full">
+                {farmerData?.province || 'Manica'}
+             </span>
+          </div>
+
+          <div className="bg-amber-50/40 p-4 rounded-2xl border border-amber-100/30 text-center flex flex-col justify-center items-center shadow-sm hover:scale-[1.02] transition-transform">
+             <div className="w-8 h-8 bg-amber-100/80 rounded-xl flex items-center justify-center mb-1.5 shadow-sm">
+                <ShieldCheck className="w-4 h-4 text-amber-600" />
+             </div>
+             <span className="text-[9px] font-bold text-amber-800/80 uppercase tracking-wider block">Global G.A.P.</span>
+             <span className="font-black text-[10px] text-amber-950 leading-none mt-1 uppercase tracking-tighter">
+                {(farmerData?.certificationStatus === 'certified' || !farmerData?.certificationStatus) ? 'Certificado' : 
+                 farmerData?.certificationStatus === 'pending' ? 'Pendente' :
+                 farmerData?.certificationStatus === 'expired' ? 'Expirado' : 'Sem Registo'}
+             </span>
+          </div>
+
+          <div className="bg-indigo-50/40 p-4 rounded-2xl border border-indigo-100/30 text-center flex flex-col justify-center items-center shadow-sm hover:scale-[1.02] transition-transform">
+             <div className="w-8 h-8 bg-indigo-100/80 rounded-xl flex items-center justify-center mb-1.5 shadow-sm">
+                <Phone className="w-4 h-4 text-indigo-600" />
+             </div>
+             <span className="text-[9px] font-bold text-indigo-800/80 uppercase tracking-wider block">Contacto</span>
+             <span className="font-black text-xs text-indigo-950 leading-none mt-1 truncate max-w-full font-mono">
+                {farmerData?.phoneNumber || 'Não definido'}
+             </span>
+          </div>
         </div>
       </section>
 
       {/* Batches Section */}
       <section className="space-y-6">
         <div className="flex items-center justify-between">
-           <h4 className="font-bold text-emerald-950 text-lg">Minhas Colheitas</h4>
+           <div className="space-y-0.5">
+             <h4 className="font-black text-emerald-950 text-xl tracking-tight">O Meu Inventário</h4>
+             <p className="text-xs text-gray-400">Gerir e monitorizar o estado de distribuição dos seus lotes agrícolas</p>
+           </div>
            <button 
             onClick={() => setShowAdd(true)}
-            className="w-10 h-10 bg-emerald-600 text-white rounded-xl flex items-center justify-center active:scale-90 transition-transform shadow-lg shadow-emerald-600/20"
+            className="w-12 h-12 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl flex items-center justify-center active:scale-95 transition-transform shadow-xl shadow-emerald-600/30"
            >
-             <Plus className="w-5 h-5" />
+             <Plus className="w-6 h-6" />
            </button>
         </div>
-
-        {/* Filter Buttons */}
-        <div className="space-y-4">
-          <div className="flex gap-2 overflow-x-auto pb-2 -mx-2 px-2 invisible-scrollbar">
-            {[
-              { id: 'all', label: 'Tudo' },
-              { id: '30d', label: '30 Dias' },
-              { id: '6m', label: '6 Meses' },
-              { id: '1y', label: '1 Ano' }
-            ].map(f => (
-              <button
-                key={f.id}
-                onClick={() => setFilter(f.id as any)}
-                className={cn(
-                  "px-4 py-2 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all shrink-0 border",
-                  filter === f.id 
-                    ? "bg-emerald-600 text-white border-emerald-600 shadow-md" 
-                    : "bg-white text-gray-400 border-[#E5E2D9] hover:border-emerald-200"
-                )}
+ 
+        {/* Search & Filter Container */}
+        <div className="space-y-3.5">
+          <div className="relative">
+            <Search className="w-5 h-5 text-gray-400 absolute left-4.5 top-1/2 -translate-y-1/2" />
+            <input 
+              type="text" 
+              placeholder="Pesquisar por tipo de cultivo ou ID do lote (Ex: Milho, Manga, BATCH)..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full bg-white border border-[#E5E2D9] rounded-2xl py-4 pl-12 pr-12 text-sm outline-none focus:ring-2 focus:ring-emerald-600 focus:border-transparent transition-all shadow-sm font-medium"
+            />
+            {searchQuery && (
+              <button 
+                onClick={() => setSearchQuery('')}
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-1.5 rounded-full hover:bg-gray-100 transition-colors"
+                title="Limpar pesquisa"
               >
-                {f.label}
+                <X className="w-4 h-4" />
               </button>
-            ))}
+            )}
           </div>
 
-          <div className="flex gap-2 overflow-x-auto pb-2 -mx-2 px-2 invisible-scrollbar">
-            {[
-              { id: 'all', label: 'Todos os Status' },
-              { id: 'harvested', label: 'Colhido' },
-              { id: 'distributing', label: 'Distribuição' },
-              { id: 'market', label: 'Mercado' }
-            ].map(f => (
-              <button
-                key={f.id}
-                onClick={() => setStatusFilter(f.id as any)}
-                className={cn(
-                  "px-4 py-2 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all shrink-0 border",
-                  statusFilter === f.id 
-                    ? "bg-amber-500 text-white border-amber-500 shadow-md" 
-                    : "bg-white text-gray-400 border-[#E5E2D9] hover:border-amber-200"
-                )}
-              >
-                {f.label}
-              </button>
-            ))}
+          <div className="flex flex-col gap-2">
+            <div className="flex gap-2 overflow-x-auto pb-1 invisible-scrollbar">
+              {[
+                { id: 'all', label: 'Todos os Períodos' },
+                { id: '30d', label: 'Últimos 30 dias' },
+                { id: '6m', label: '6 Meses' },
+                { id: '1y', label: '1 Ano' }
+              ].map(f => (
+                <button
+                  key={f.id}
+                  onClick={() => setFilter(f.id as any)}
+                  className={cn(
+                    "px-4 py-2 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all shrink-0 border",
+                    filter === f.id 
+                      ? "bg-emerald-600 text-white border-emerald-600 shadow-md" 
+                      : "bg-white text-gray-400 border-[#E5E2D9] hover:border-emerald-300 cursor-pointer"
+                  )}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex gap-2 overflow-x-auto pb-1 invisible-scrollbar">
+              {[
+                { id: 'all', label: 'Todos os Status' },
+                { id: 'harvested', label: 'Colhido 🌾' },
+                { id: 'distributing', label: 'Em Trânsito 🚚' },
+                { id: 'market', label: 'Mercado 🏪' }
+              ].map(f => (
+                <button
+                  key={f.id}
+                  onClick={() => setStatusFilter(f.id as any)}
+                  className={cn(
+                    "px-4 py-2 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all shrink-0 border",
+                    statusFilter === f.id 
+                      ? "bg-amber-600 text-white border-amber-500 shadow-md" 
+                      : "bg-white text-gray-400 border-[#E5E2D9] hover:border-amber-300 cursor-pointer"
+                  )}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
-        <div className="space-y-3">
+        <div className="space-y-3.5 font-sans">
           {filteredBatches.map(b => (
             <div 
               key={b.batchId} 
               onClick={() => setSelectedBatch(b)}
-              className="bg-white p-4 rounded-[2rem] border border-[#E5E2D9] flex items-center gap-4 active:scale-[0.98] transition-transform cursor-pointer hover:border-emerald-200 group"
+              className="bg-white p-5 rounded-[2rem] border border-[#E5E2D9] flex flex-col md:flex-row md:items-center justify-between gap-4 active:scale-[0.99] transition-all cursor-pointer hover:border-emerald-250 hover:shadow-md group relative overflow-hidden pl-6"
             >
-              <div className="flex items-center gap-3">
-                {b.photoUrl && (
-                  <div className="w-12 h-12 rounded-2xl overflow-hidden border border-gray-100 shrink-0 shadow-sm">
-                    <img src={b.photoUrl} className="w-full h-full object-cover" alt={b.cropType} referrerPolicy="no-referrer" />
+              <div className={cn(
+                "absolute left-0 top-0 bottom-0 w-2 transition-all group-hover:w-2.5",
+                b.status === 'harvested' ? "bg-emerald-500" :
+                b.status === 'distributing' ? "bg-amber-500" :
+                b.status === 'market' ? "bg-blue-500" : "bg-gray-400"
+              )} />
+
+              <div className="flex flex-1 items-center justify-between gap-4">
+                <div className="flex items-center gap-4 min-w-0">
+                  {b.photoUrl ? (
+                    <div className="w-14 h-14 rounded-2xl overflow-hidden border border-gray-100 shrink-0 shadow-sm relative group-hover:scale-105 transition-transform">
+                      <img src={b.photoUrl} className="w-full h-full object-cover" alt={b.cropType} referrerPolicy="no-referrer" />
+                    </div>
+                  ) : (
+                    <div className="w-14 h-14 bg-emerald-50 text-emerald-700 rounded-2xl flex items-center justify-center border border-emerald-100 shrink-0">
+                      <Leaf className="w-6 h-6" />
+                    </div>
+                  )}
+                  <div className="bg-gray-50 p-1 rounded-2xl border border-gray-100 group-hover:bg-emerald-50/50 transition-colors shrink-0">
+                    <QRCodeSVG value={b.batchId} size={42} level="H" />
                   </div>
-                )}
-                <div className="bg-gray-50 p-2 rounded-2xl border border-gray-100 group-hover:bg-emerald-50 transition-colors">
-                  <QRCodeSVG value={b.batchId} size={48} level="H" />
+                  <div className="min-w-0 space-y-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h5 className="font-extrabold text-[#2C2B29] text-base group-hover:text-emerald-950 transition-colors truncate">{b.cropType}</h5>
+                      <span className="text-[10px] bg-emerald-50 text-emerald-800 font-extrabold px-3 py-0.5 rounded-full uppercase tracking-tighter">
+                        {b.quantity}
+                      </span>
+                    </div>
+                    <p className="text-[10px] font-mono font-bold text-gray-400 flex items-center gap-1.5 leading-none">
+                      <span className="text-gray-300">ID:</span> {b.batchId}
+                    </p>
+                  </div>
                 </div>
               </div>
-              <div className="flex-1 min-w-0">
-                <h5 className="font-bold text-emerald-900 truncate">{b.cropType}</h5>
-                <p className="text-[10px] font-mono text-gray-400">{b.batchId}</p>
-              </div>
-               <div className="text-right">
-                  <span className={cn(
-                    "px-3 py-1 text-[10px] font-black uppercase tracking-widest rounded-lg",
-                    b.status === 'harvested' ? "bg-emerald-50 text-emerald-700" :
-                    b.status === 'distributing' ? "bg-amber-50 text-amber-700" :
-                    b.status === 'market' ? "bg-blue-50 text-blue-700" :
-                    "bg-gray-50 text-gray-700"
-                  )}>
-                    {b.status === 'harvested' ? 'Colhido' : 
-                     b.status === 'distributing' ? 'Distribuição' :
-                     b.status === 'market' ? 'Mercado' : b.status}
+
+              {/* Supply Chain Progress & Quick Actions */}
+              <div className="flex flex-col md:items-end justify-between gap-3 text-left md:text-right border-t md:border-t-0 border-gray-150 pt-2.5 md:pt-0">
+                {/* Visual supply chain roadmap */}
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {/* Stage 1: Colhido */}
+                  <div className="flex items-center gap-1.5 bg-gray-50 px-2 py-1 rounded-lg border border-gray-100">
+                    <div className={cn(
+                      "w-2 h-2 rounded-full",
+                      (b.status === 'harvested' || b.status === 'distributing' || b.status === 'market' || b.status === 'consumed') ? "bg-emerald-500 animate-pulse" : "bg-gray-200"
+                    )} />
+                    <span className="text-[9px] font-extrabold uppercase tracking-widest text-[#5C5A54]">Colhido</span>
+                  </div>
+                  <span className="text-gray-300 text-xs hidden md:inline">→</span>
+                  {/* Stage 2: Em Trânsito */}
+                  <div className="flex items-center gap-1.5 bg-gray-50 px-2 py-1 rounded-lg border border-gray-100">
+                    <div className={cn(
+                      "w-2 h-2 rounded-full",
+                      (b.status === 'distributing' || b.status === 'market' || b.status === 'consumed') ? "bg-amber-500 animate-pulse" : "bg-gray-200"
+                    )} />
+                    <span className="text-[9px] font-extrabold uppercase tracking-widest text-[#5C5A54]">Trânsito</span>
+                  </div>
+                  <span className="text-gray-300 text-xs hidden md:inline">→</span>
+                  {/* Stage 3: No Mercado */}
+                  <div className="flex items-center gap-1.5 bg-gray-50 px-2 py-1 rounded-lg border border-gray-100">
+                    <div className={cn(
+                      "w-2 h-2 rounded-full",
+                      (b.status === 'market' || b.status === 'consumed') ? "bg-blue-500 animate-pulse" : "bg-gray-200"
+                    )} />
+                    <span className="text-[9px] font-extrabold uppercase tracking-widest text-[#5C5A54]">No Mercado</span>
+                  </div>
+                </div>
+
+                {/* Instant action button */}
+                <div className="flex items-center gap-3 shrink-0">
+                  {b.status === 'harvested' && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        updateBatchStatus(b.batchId, 'distributing');
+                      }}
+                      className="px-3.5 py-2 bg-amber-500 hover:bg-amber-600 text-white font-extrabold text-[10px] uppercase tracking-wider rounded-xl flex items-center gap-1.5 shadow-md active:scale-95 transition-all text-center border-b-2 border-amber-700"
+                      title="Mudar status para: Em Distribuição"
+                    >
+                      <span>Despachar Lote (Trânsito)</span>
+                      <ArrowRight className="w-3 h-3" />
+                    </button>
+                  )}
+                  {b.status === 'distributing' && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        updateBatchStatus(b.batchId, 'market');
+                      }}
+                      className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-[10px] uppercase tracking-wider rounded-xl flex items-center gap-1.5 shadow-md active:scale-95 transition-all text-center border-b-2 border-blue-800"
+                      title="Mudar status para: No Mercado"
+                    >
+                      <span>Entregar ao Mercado</span>
+                      <ArrowRight className="w-3 h-3" />
+                    </button>
+                  )}
+                  {b.status === 'market' && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        updateBatchStatus(b.batchId, 'consumed');
+                      }}
+                      className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-[10px] uppercase tracking-wider rounded-xl flex items-center gap-1.5 shadow-md active:scale-95 transition-all text-center border-b-2 border-emerald-800"
+                      title="Mudar status para: Finalizado"
+                    >
+                      <span>Finalizar Lote</span>
+                      <Check className="w-3 h-3" />
+                    </button>
+                  )}
+                  {b.status === 'consumed' && (
+                    <span className="text-[10px] font-extrabold text-emerald-600 uppercase tracking-widest flex items-center gap-1.5 bg-emerald-50 border border-emerald-150 px-3 py-1.5 rounded-xl">
+                      <Check className="w-3.5 h-3.5" /> Concluído
+                    </span>
+                  )}
+                  
+                  <span className="text-[10px] font-semibold text-gray-450 font-mono">
+                    Colhido: {formatDate(b.harvestDate)}
                   </span>
-                  <p className="text-[10px] text-gray-400 mt-1 font-bold">{b.quantity}</p>
-               </div>
+                </div>
+              </div>
             </div>
           ))}
 
@@ -1858,6 +2640,10 @@ function FarmerPortal({ user, login }: { user: UserProfile | null, login: () => 
           userId={user.uid} 
           onClose={() => setShowEditProfile(false)} 
           onSave={(updated) => setFarmerData(updated)}
+          onDeleteAccount={() => {
+            setShowEditProfile(false);
+            logout();
+          }}
         />
       )}
       {selectedBatch && (
@@ -1875,6 +2661,7 @@ function LoginForm({ lang, onBack, onLogin, onGoogle, onGoRegister, onEmailLogin
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [verificationId, setVerificationId] = useState<any>(null);
   const [otp, setOtp] = useState('');
   const [loading, setLoading] = useState(false);
@@ -1948,31 +2735,53 @@ function LoginForm({ lang, onBack, onLogin, onGoogle, onGoRegister, onEmailLogin
       {loginMethod === 'email' ? (
         <form onSubmit={handleEmailSubmit} className="space-y-4">
           <div className="relative text-left">
-            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1 mb-1 block">Email</label>
+            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1 mb-1 block">
+              {lang === 'pt' ? "E-mail ou Telemóvel" : "Email or Phone"}
+            </label>
             <div className="relative">
               <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
               <input 
-                type="email" 
+                type="text" 
                 required
-                placeholder="exemplo@agrotrace.com"
-                className="w-full bg-gray-50 border border-gray-100 rounded-2xl py-4 pl-12 pr-4 focus:ring-2 focus:ring-emerald-600 outline-none transition-all text-sm"
+                placeholder={lang === 'pt' ? "exemplo@agrotrace.com ou 84 123 4567" : "example@agrotrace.com or 84 123 4567"}
+                className="w-full bg-gray-50 border border-gray-100 rounded-2xl py-4 pl-12 pr-4 focus:ring-2 focus:ring-emerald-600 outline-none transition-all text-sm font-medium"
                 value={email}
                 onChange={e => setEmail(e.target.value)}
               />
             </div>
+            {email && !email.includes('@') && (
+              <div className="mt-2 flex items-center gap-2 pl-1 animate-fade-in">
+                <span className={cn("px-2.5 py-0.5 text-[8px] font-black uppercase rounded-md tracking-wider shadow-sm", parseAndValidatePhone(email).color)}>
+                  {parseAndValidatePhone(email).label}
+                </span>
+                {parseAndValidatePhone(email).isValid ? (
+                  <span className="text-[9px] text-emerald-600 font-bold uppercase tracking-tight">✓ Pronto para entrar</span>
+                ) : (
+                  <span className="text-[9px] text-amber-600 font-bold uppercase tracking-tight">Incompleto</span>
+                )}
+              </div>
+            )}
           </div>
           <div className="relative text-left">
             <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1 mb-1 block">{lang === 'pt' ? "Senha" : "Password"}</label>
             <div className="relative">
               <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
               <input 
-                type="password" 
+                type={showPassword ? "text" : "password"} 
                 required
                 placeholder="••••••••"
-                className="w-full bg-gray-50 border border-gray-100 rounded-2xl py-4 pl-12 pr-4 focus:ring-2 focus:ring-emerald-600 outline-none transition-all text-sm"
+                className="w-full bg-gray-50 border border-gray-100 rounded-2xl py-4 pl-12 pr-12 focus:ring-2 focus:ring-emerald-600 outline-none transition-all text-sm"
                 value={password}
                 onChange={e => setPassword(e.target.value)}
               />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-4 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600 transition-colors focus:outline-none"
+                title={showPassword ? (lang === 'pt' ? "Ocultar senha" : "Hide password") : (lang === 'pt' ? "Mostrar senha" : "Show password")}
+              >
+                {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+              </button>
             </div>
           </div>
           <button 
@@ -2074,19 +2883,35 @@ function RegisterForm({ lang, onBack, onRegister }: any) {
     location: '',
     password: ''
   });
+  const [noEmail, setNoEmail] = useState(false);
   const [detecting, setDetecting] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [showRegPassword, setShowRegPassword] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.name || !formData.email || !formData.password || !formData.phone) {
+    if (!formData.name || (!noEmail && !formData.email) || !formData.password || !formData.phone) {
       showToast(lang === 'pt' ? 'Por favor, preencha todos os campos obrigatórios.' : 'Please fill all required fields.', 'info');
+      return;
+    }
+
+    const phoneValidation = parseAndValidatePhone(formData.phone);
+    if (!phoneValidation.isValid) {
+      showToast(
+        lang === 'pt' 
+          ? 'Por favor, introduza um número de telemóvel válido.' 
+          : 'Please enter a valid phone number.', 
+        'error'
+      );
       return;
     }
     
     setLoading(true);
     try {
-      await onRegister(formData);
+      await onRegister({
+        ...formData,
+        noEmail
+      });
     } catch (error: any) {
       console.error('Registration error:', error);
       showToast(error.message || 'Erro ao realizar o registo.', 'error');
@@ -2118,6 +2943,8 @@ function RegisterForm({ lang, onBack, onRegister }: any) {
     );
   };
 
+  const phoneInfo = parseAndValidatePhone(formData.phone);
+
   return (
     <motion.div 
       initial={{ opacity: 0, x: 20 }}
@@ -2143,22 +2970,54 @@ function RegisterForm({ lang, onBack, onRegister }: any) {
             </div>
           </div>
 
-          <div className="relative text-left">
-            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1 mb-1 block">
-              {lang === 'pt' ? "Email" : "Email"} *
+          <div className="flex items-center gap-2 pl-1 py-1">
+            <input 
+              type="checkbox"
+              id="no-email-checkbox"
+              className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-650 border-gray-300 transition-all cursor-pointer"
+              checked={noEmail}
+              onChange={e => {
+                setNoEmail(e.target.checked);
+                if (e.target.checked) {
+                  setFormData(prev => ({ ...prev, email: '' }));
+                }
+              }}
+            />
+            <label htmlFor="no-email-checkbox" className="text-xs font-bold text-gray-500 cursor-pointer select-none">
+              {lang === 'pt' ? "Não tenho endereço de e-mail" : "I do not have an email address"}
             </label>
-            <div className="relative">
-              <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-              <input 
-                type="email" 
-                required
-                placeholder="exemplo@agrotrace.com"
-                className="w-full bg-gray-50 border border-gray-100 rounded-2xl py-3 pl-12 pr-4 focus:ring-2 focus:ring-emerald-600 outline-none transition-all text-sm"
-                value={formData.email}
-                onChange={e => setFormData({...formData, email: e.target.value})}
-              />
-            </div>
           </div>
+
+          {!noEmail ? (
+            <div className="relative text-left">
+              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1 mb-1 block">
+                {lang === 'pt' ? "Email" : "Email"} *
+              </label>
+              <div className="relative">
+                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <input 
+                  type="email" 
+                  required={!noEmail}
+                  placeholder="exemplo@agrotrace.com"
+                  className="w-full bg-gray-50 border border-gray-100 rounded-2xl py-3 pl-12 pr-4 focus:ring-2 focus:ring-emerald-600 outline-none transition-all text-sm font-medium"
+                  value={formData.email}
+                  onChange={e => setFormData({...formData, email: e.target.value})}
+                />
+              </div>
+            </div>
+          ) : (
+            <div className="bg-emerald-50/50 border border-emerald-100 p-3.5 rounded-2xl text-left text-xs space-y-1 animate-fade-in">
+              <div className="font-black flex items-center gap-1.5 text-emerald-900 uppercase tracking-wide text-[10px]">
+                <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+                {lang === 'pt' ? "REGISTO SEM E-MAIL ATIVADO" : "E-MAIL FREE SIGN UP ENABLED"}
+              </div>
+              <p className="text-emerald-700/80 font-medium leading-relaxed">
+                {lang === 'pt' 
+                  ? "Sua conta será vinculada diretamente ao seu telemóvel. Use o número para fazer login futuramente." 
+                  : "Your account will be securely linked to your mobile phone number. Use it to log in in the future."}
+              </p>
+            </div>
+          )}
 
           <div className="relative text-left">
             <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1 mb-1 block">
@@ -2169,12 +3028,24 @@ function RegisterForm({ lang, onBack, onRegister }: any) {
               <input 
                 type="tel" 
                 required
-                placeholder="84 000 0000"
-                className="w-full bg-gray-50 border border-gray-100 rounded-2xl py-3 pl-12 pr-4 focus:ring-2 focus:ring-emerald-600 outline-none transition-all text-sm"
+                placeholder={lang === 'pt' ? "e.g. 84 123 4567" : "e.g. 84 123 4567"}
+                className="w-full bg-gray-50 border border-gray-100 rounded-2xl py-3 pl-12 pr-4 focus:ring-2 focus:ring-emerald-600 outline-none transition-all text-sm font-medium"
                 value={formData.phone}
                 onChange={e => setFormData({...formData, phone: e.target.value})}
               />
             </div>
+            {formData.phone && (
+              <div className="mt-2 flex items-center gap-2 pl-1 animate-fade-in">
+                <span className={cn("px-2.5 py-0.5 text-[8px] font-black uppercase rounded-md tracking-wider shadow-sm", phoneInfo.color)}>
+                  {phoneInfo.label}
+                </span>
+                {phoneInfo.isValid ? (
+                  <span className="text-[9px] text-emerald-600 font-bold uppercase tracking-tight">✓ Número Válido</span>
+                ) : (
+                  <span className="text-[9px] text-amber-600 font-bold uppercase tracking-tight">Formato incompleto</span>
+                )}
+              </div>
+            )}
           </div>
 
           <div className="relative text-left">
@@ -2209,13 +3080,21 @@ function RegisterForm({ lang, onBack, onRegister }: any) {
             <div className="relative">
               <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
               <input 
-                type="password" 
+                type={showRegPassword ? "text" : "password"} 
                 required
                 placeholder="••••••••"
-                className="w-full bg-gray-50 border border-gray-100 rounded-2xl py-3 pl-12 pr-4 focus:ring-2 focus:ring-emerald-600 outline-none transition-all text-sm"
+                className="w-full bg-gray-50 border border-gray-100 rounded-2xl py-3 pl-12 pr-12 focus:ring-2 focus:ring-emerald-600 outline-none transition-all text-sm font-medium"
                 value={formData.password}
                 onChange={e => setFormData({...formData, password: e.target.value})}
               />
+              <button
+                type="button"
+                onClick={() => setShowRegPassword(!showRegPassword)}
+                className="absolute right-4 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600 transition-colors focus:outline-none"
+                title={showRegPassword ? (lang === 'pt' ? "Ocultar senha" : "Hide password") : (lang === 'pt' ? "Mostrar senha" : "Show password")}
+              >
+                {showRegPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+              </button>
             </div>
           </div>
         </div>
@@ -2239,12 +3118,54 @@ function RegisterForm({ lang, onBack, onRegister }: any) {
   );
 }
 
-function EditProfileModal({ farmer, userId, onClose, onSave }: any) {
+function EditProfileModal({ farmer, userId, onClose, onSave, onDeleteAccount }: any) {
   const [photoUrl, setPhotoUrl] = useState(farmer?.photoUrl || '');
   const [name, setName] = useState(farmer?.name || '');
   const [bio, setBio] = useState(farmer?.bio || '');
+  const [province, setProvince] = useState(farmer?.province || 'Manica');
+  const [phoneNumber, setPhoneNumber] = useState(farmer?.phoneNumber || '');
+  const [gapId, setGapId] = useState(farmer?.gapId || '');
+  const [certificationStatus, setCertificationStatus] = useState(farmer?.certificationStatus || 'certified');
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
+
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deletingAccount, setDeletingAccount] = useState(false);
+
+  const handleDeleteAccount = async () => {
+    setDeletingAccount(true);
+    try {
+      // 1. Fetch and delete batches associated with this farmer
+      const q = query(collection(db, 'batches'), where('farmerId', '==', userId));
+      const batchSnap = await getDocs(q);
+      const deletePromises = batchSnap.docs.map(doc => deleteDoc(doc.ref));
+      await Promise.all(deletePromises);
+
+      // 2. Delete farmer and user profile documentation
+      await Promise.all([
+        deleteDoc(doc(db, 'farmers', userId)),
+        deleteDoc(doc(db, 'users', userId))
+      ]);
+
+      // 3. Try deleting user account in Firebase Auth
+      const currentUser = auth.currentUser;
+      if (currentUser) {
+        try {
+          await deleteUser(currentUser);
+        } catch (authErr) {
+          console.warn('Authentication user deletion postponed or requiring reauth:', authErr);
+        }
+      }
+
+      showToast('O seu perfil de produtor foi permanentemente removido com sucesso.', 'success');
+      onDeleteAccount();
+    } catch (err) {
+      console.error('Error deleting account:', err);
+      showToast('Ocorreu um erro ao excluir a sua conta.', 'error');
+    } finally {
+      setDeletingAccount(false);
+    }
+  };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -2272,6 +3193,10 @@ function EditProfileModal({ farmer, userId, onClose, onSave }: any) {
   };
 
   const save = async () => {
+    if (!name.trim()) {
+      showToast('O nome do produtor é obrigatório.', 'error');
+      return;
+    }
     setLoading(true);
     try {
       const updatedData = {
@@ -2279,6 +3204,10 @@ function EditProfileModal({ farmer, userId, onClose, onSave }: any) {
         name,
         photoUrl,
         bio,
+        province,
+        phoneNumber,
+        gapId,
+        certificationStatus,
         farmerId: userId
       };
       try {
@@ -2308,22 +3237,22 @@ function EditProfileModal({ farmer, userId, onClose, onSave }: any) {
       <motion.div 
         initial={{ scale: 0.9, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
-        className="bg-white rounded-[2rem] sm:rounded-[2.5rem] w-full max-w-md p-6 sm:p-8 shadow-2xl relative overflow-hidden"
+        className="bg-white rounded-[2rem] sm:rounded-[2.5rem] w-full max-w-lg p-6 sm:p-8 shadow-2xl relative overflow-hidden"
       >
         <div className="absolute top-0 left-0 w-full h-2 bg-emerald-600" />
         
-        <button onClick={onClose} className="absolute top-6 right-6 p-2 hover:bg-gray-100 rounded-full transition-colors">
+        <button onClick={onClose} className="absolute top-6 right-6 p-2 hover:bg-gray-100 rounded-full transition-colors z-10">
           <X className="w-5 h-5 text-gray-400" />
         </button>
 
-        <div className="mb-8">
+        <div className="mb-6">
            <h3 className="text-2xl font-bold text-emerald-900">Editar Perfil</h3>
-           <p className="text-sm text-gray-500">Atualize as informações do seu perfil de produtor.</p>
+           <p className="text-xs text-gray-500">Atualize as informações do seu perfil de produtor.</p>
         </div>
 
-        <div className="space-y-6">
-          <div className="flex justify-center mb-6">
-            <div className="w-24 h-24 bg-emerald-50 rounded-3xl overflow-hidden border-2 border-emerald-100 shadow-inner">
+        <div className="space-y-4 overflow-y-auto max-h-[70vh] pr-1 scrollbar-thin">
+          <div className="flex flex-col sm:flex-row items-center gap-6 bg-emerald-50/50 p-4 rounded-2xl border border-emerald-100/30">
+            <div className="w-20 h-20 bg-emerald-100 rounded-2xl overflow-hidden border-2 border-white shadow-md shrink-0">
                <img 
                  src={photoUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${userId}`} 
                  className="w-full h-full object-cover" 
@@ -2332,78 +3261,182 @@ function EditProfileModal({ farmer, userId, onClose, onSave }: any) {
                  }}
                />
             </div>
-          </div>
-
-          <div className="space-y-2">
-            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">Nome do Produtor</label>
-            <input 
-              type="text" 
-              className="w-full bg-gray-50 border border-gray-100 rounded-2xl py-4 px-5 focus:ring-2 focus:ring-emerald-600 outline-none transition-all"
-              value={name}
-              onChange={e => setName(e.target.value)}
-              placeholder="Nome do Produtor"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">Fotografia do Produtor</label>
-            <div className="flex items-center gap-4">
-               <label className={cn(
-                 "flex-1 flex flex-col items-center justify-center p-4 border-2 border-dashed rounded-2xl cursor-pointer transition-all",
-                 uploading ? "bg-gray-50 border-emerald-300" : "bg-emerald-50/50 border-emerald-100 hover:border-emerald-300 hover:bg-emerald-50"
-               )}>
-                 <div className="flex flex-col items-center justify-center pt-1 pb-1">
-                   {uploading ? (
-                     <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-emerald-600 mb-2"></div>
-                   ) : (
-                     <Camera className="w-6 h-6 text-emerald-600 mb-2" />
-                   )}
-                   <p className="text-[10px] font-bold text-emerald-900 uppercase tracking-tighter">
-                     {uploading ? 'A Carregar...' : 'Carregar do Dispositivo'}
-                   </p>
-                   <p className="text-[10px] text-gray-400 mt-1">PNG, JPG até 2MB</p>
-                 </div>
-                 <input type="file" className="hidden" accept="image/*" onChange={handleFileUpload} disabled={uploading} />
-               </label>
-               {photoUrl && (
-                 <button 
-                  onClick={() => setPhotoUrl('')}
-                  className="p-3 bg-red-50 text-red-600 rounded-xl hover:bg-red-100 transition-colors"
-                  title="Remover Foto"
-                 >
-                   <X className="w-5 h-5" />
-                 </button>
-               )}
-            </div>
-            {photoUrl && (
-              <div className="mt-2 py-2 px-3 bg-emerald-50 rounded-lg border border-emerald-100 flex items-center gap-2">
-                 <ShieldCheck className="w-3 h-3 text-emerald-600" />
-                 <span className="text-[10px] font-bold text-emerald-900 truncate">{photoUrl}</span>
+            <div className="flex-1 w-full space-y-2">
+              <label className="text-[10px] font-bold text-emerald-800 uppercase tracking-widest ml-1">Fotografia do Produtor</label>
+              <div className="flex items-center gap-2">
+                <label className={cn(
+                  "flex-1 flex flex-row items-center justify-center gap-2 p-3 border-2 border-dashed rounded-xl cursor-pointer transition-all bg-white text-emerald-950",
+                  uploading ? "border-emerald-300 opacity-70" : "border-emerald-200 hover:border-emerald-400"
+                )}>
+                  {uploading ? (
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-emerald-600"></div>
+                  ) : (
+                    <Camera className="w-4 h-4 text-emerald-600" />
+                  )}
+                  <span className="text-[10px] font-bold uppercase tracking-wider">
+                    {uploading ? 'A Carregar...' : 'Escolher Foto'}
+                  </span>
+                  <input type="file" className="hidden" accept="image/*" onChange={handleFileUpload} disabled={uploading} />
+                </label>
+                {photoUrl && (
+                  <button 
+                   onClick={() => setPhotoUrl('')}
+                   className="p-3 bg-red-50 text-red-600 rounded-xl hover:bg-red-100 transition-colors"
+                   title="Remover Foto"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
               </div>
-            )}
+            </div>
           </div>
 
-          <div className="space-y-2">
-            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">Biografia / Sobre a Quinta</label>
-            <textarea 
-              className="w-full bg-gray-50 border border-gray-100 rounded-2xl py-4 px-5 focus:ring-2 focus:ring-emerald-600 outline-none transition-all resize-none h-24"
-              value={bio}
-              onChange={e => setBio(e.target.value)}
-              placeholder="Conte aos consumidores sobre o seu processo de cultivo..."
-            />
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">Nome do Produtor</label>
+              <input 
+                type="text" 
+                className="w-full bg-gray-50 border border-gray-100 rounded-xl py-3 px-4 text-sm focus:ring-2 focus:ring-emerald-600 outline-none transition-all"
+                value={name}
+                onChange={e => setName(e.target.value)}
+                placeholder="Nome do Produtor"
+              />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">Província (Moçambique)</label>
+                <select 
+                  className="w-full bg-gray-50 border border-gray-100 rounded-xl py-3 px-3.5 text-sm focus:ring-2 focus:ring-emerald-600 outline-none transition-all"
+                  value={province}
+                  onChange={e => setProvince(e.target.value)}
+                >
+                  <option value="Manica">Manica (Chimoio)</option>
+                  <option value="Sofala">Sofala (Beira)</option>
+                  <option value="Tete">Tete</option>
+                  <option value="Zambézia">Zambézia</option>
+                  <option value="Nampula">Nampula</option>
+                  <option value="Niassa">Niassa</option>
+                  <option value="Cabo Delgado">Cabo Delgado</option>
+                  <option value="Gaza">Gaza</option>
+                  <option value="Inhambane">Inhambane</option>
+                  <option value="Maputo">Maputo</option>
+                </select>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">Telemóvel / Contacto</label>
+                <input 
+                  type="text" 
+                  className="w-full bg-gray-50 border border-gray-100 rounded-xl py-3 px-4 text-sm focus:ring-2 focus:ring-emerald-600 outline-none transition-all font-mono"
+                  value={phoneNumber}
+                  onChange={e => setPhoneNumber(e.target.value)}
+                  placeholder="e.g. +258 84 123 4567"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">Código Global G.A.P.</label>
+                <input 
+                  type="text" 
+                  className="w-full bg-gray-50 border border-gray-100 rounded-xl py-3 px-4 text-sm focus:ring-2 focus:ring-emerald-600 outline-none transition-all font-mono"
+                  value={gapId}
+                  onChange={e => setGapId(e.target.value)}
+                  placeholder="GGN 4050607..."
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">Estado de Certificação</label>
+                <select 
+                  className="w-full bg-gray-50 border border-gray-100 rounded-xl py-3 px-3.5 text-sm focus:ring-2 focus:ring-emerald-600 outline-none transition-all"
+                  value={certificationStatus}
+                  onChange={e => setCertificationStatus(e.target.value as any)}
+                >
+                  <option value="certified">Certificado (GAP Ativo)</option>
+                  <option value="pending">Pendente (Em Auditoria)</option>
+                  <option value="none">Não Certificado</option>
+                  <option value="expired">Certificado Expirado</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">Biografia / Sobre a Quinta</label>
+              <textarea 
+                className="w-full bg-gray-50 border border-gray-100 rounded-xl py-3 px-4 text-sm focus:ring-2 focus:ring-emerald-600 outline-none transition-all resize-none h-20"
+                value={bio}
+                onChange={e => setBio(e.target.value)}
+                placeholder="Conte aos consumidores sobre o seu processo de cultivo e história em Chimoio..."
+              />
+            </div>
+
+            {/* Danger Zone: Account Deletion */}
+            <div className="pt-4 border-t border-red-100 bg-red-50/40 p-4 rounded-2xl border border-red-100/50 space-y-3 text-left">
+              <div className="flex items-center gap-2">
+                <Trash2 className="w-4 h-4 text-red-600 shrink-0" />
+                <span className="text-[10px] font-black text-red-850 uppercase tracking-widest">Zona de Perigo</span>
+              </div>
+              <p className="text-[10.5px] text-red-700/80 leading-relaxed">
+                Se não pretender continuar a fazer parte do AgroTrace, pode eliminar a sua conta de produtor de forma permanente.
+              </p>
+              
+              {!showDeleteConfirm ? (
+                <button
+                  type="button"
+                  onClick={() => setShowDeleteConfirm(true)}
+                  className="w-full bg-white hover:bg-red-50 text-red-650 border border-red-200 hover:border-red-300 py-2.5 rounded-xl font-bold text-xs transition-colors shadow-sm cursor-pointer"
+                >
+                  Desejo Eliminar o Meu Registo do Mercado
+                </button>
+              ) : (
+                <div className="space-y-3 bg-red-105 bg-red-50 p-3.5 rounded-xl border border-red-200/40">
+                  <p className="text-[10.5px] font-black text-red-900 leading-normal uppercase">
+                    ⚠️ Atenção: Esta ação é definitiva e irreversível!
+                  </p>
+                  <p className="text-[10px] text-red-750 leading-normal font-bold">
+                    Todos os seus lotes ativos e histórico de produtor serão completamente apagados em tempo real do mercado.
+                  </p>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      disabled={deletingAccount}
+                      onClick={() => setShowDeleteConfirm(false)}
+                      className="flex-1 bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 py-2 rounded-lg font-bold text-[10.5px] transition-all shadow-sm cursor-pointer"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="button"
+                      disabled={deletingAccount}
+                      onClick={handleDeleteAccount}
+                      className="flex-1 bg-red-600 hover:bg-red-750 text-white py-2 rounded-lg font-black text-[10.5px] transition-all flex items-center justify-center gap-1 shadow-md shadow-red-500/10 cursor-pointer"
+                    >
+                      {deletingAccount ? (
+                        <div className="animate-spin rounded-full h-3 w-3 border-2 border-white border-t-transparent" />
+                      ) : (
+                        'Apagar para Sempre'
+                      )}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
 
-          <div className="pt-4 flex gap-4">
+          <div className="pt-2 flex gap-4">
             <button 
               onClick={onClose}
-              className="flex-1 py-4 text-sm font-bold text-gray-500 hover:bg-gray-50 rounded-2xl transition-colors"
+              className="flex-1 py-3 text-sm font-bold text-gray-500 hover:bg-gray-50 rounded-xl transition-colors"
             >
               Cancelar
             </button>
             <button 
               onClick={save}
               disabled={loading}
-              className="flex-1 bg-emerald-600 text-white py-4 rounded-2xl font-bold shadow-lg shadow-emerald-600/20 hover:bg-emerald-700 transition-all disabled:opacity-50"
+              className="flex-1 bg-emerald-600 text-white py-3 rounded-xl font-bold shadow-lg shadow-emerald-600/20 hover:bg-emerald-700 transition-all disabled:opacity-50 text-sm"
             >
               {loading ? 'A guardar...' : 'Guardar Alterações'}
             </button>
@@ -2417,6 +3450,7 @@ function EditProfileModal({ farmer, userId, onClose, onSave }: any) {
 function BatchHistoryModal({ batch, onClose }: { batch: Batch, onClose: () => void }) {
   const [isEditing, setIsEditing] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteConfirmInput, setDeleteConfirmInput] = useState('');
 
   const handleDelete = async () => {
     try {
@@ -2650,7 +3684,7 @@ function BatchHistoryModal({ batch, onClose }: { batch: Batch, onClose: () => vo
             </div>
             <div className="flex items-center gap-2 flex-wrap justify-end">
               <button 
-                onClick={() => setShowDeleteConfirm(true)}
+                onClick={() => { setDeleteConfirmInput(''); setShowDeleteConfirm(true); }}
                 className="py-2.5 px-3 bg-red-50 text-red-700 hover:bg-red-100 transition-all rounded-xl active:scale-95 shadow-sm flex items-center gap-1.5 font-bold text-xs uppercase tracking-wider"
                 title="Excluir Lote"
               >
@@ -3079,21 +4113,39 @@ function BatchHistoryModal({ batch, onClose }: { batch: Batch, onClose: () => vo
               <div className="space-y-2">
                 <h4 className="text-lg font-bold text-gray-900">Excluir Lote</h4>
                 <p className="text-xs text-[#5C5A54] leading-relaxed">
-                  Tem certeza que deseja excluir este lote? Esta ação não pode ser desfeita.
+                  Tem certeza que deseja excluir o lote de <strong className="text-red-700">{batch.cropType}</strong>? Esta ação é definitiva e removerá todos os dados de rastreio de forma permanente.
                 </p>
               </div>
+
+              <div className="space-y-2 text-left bg-gray-50/50 border border-[#E5E2D9] p-4 rounded-2xl">
+                <label className="block text-[10px] font-black text-gray-450 uppercase tracking-widest">
+                  Confirme o tipo de cultivo para continuar:
+                </label>
+                <input
+                  type="text"
+                  placeholder={`Escreva "${batch.cropType}"`}
+                  value={deleteConfirmInput}
+                  onChange={(e) => setDeleteConfirmInput(e.target.value)}
+                  className="w-full mt-1.5 bg-white border border-[#E5E2D9] rounded-xl px-4 py-3 text-xs text-[#2C2B29] font-semibold focus:ring-2 focus:ring-red-500 outline-none transition-all placeholder:text-gray-300"
+                />
+                <p className="text-[9.5px] text-gray-400 mt-1 leading-relaxed">
+                  Digite <strong className="text-red-650 font-bold select-all">{batch.cropType}</strong> no campo acima para confirmar a segurança da operação.
+                </p>
+              </div>
+
               <div className="flex gap-3">
                 <button
                   type="button"
                   onClick={() => setShowDeleteConfirm(false)}
-                  className="flex-1 py-3.5 px-4 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-xl text-xs font-bold text-gray-500 hover:text-gray-700 transition-all uppercase tracking-wider active:scale-95"
+                  className="flex-1 py-3.5 px-4 bg-white hover:bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold text-gray-500 hover:text-gray-755 transition-all uppercase tracking-wider active:scale-95"
                 >
                   Cancelar
                 </button>
                 <button
                   type="button"
+                  disabled={deleteConfirmInput.trim().toLowerCase() !== batch.cropType.trim().toLowerCase()}
                   onClick={handleDelete}
-                  className="flex-1 py-3.5 px-4 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold transition-all uppercase tracking-wider shadow-lg shadow-red-600/10 active:scale-95"
+                  className="flex-1 py-3.5 px-4 bg-red-650 hover:bg-red-700 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed select-none text-white rounded-xl text-xs font-bold transition-all uppercase tracking-wider shadow-lg shadow-red-600/10 active:scale-95"
                 >
                   Confirmar e Excluir
                 </button>
@@ -3273,6 +4325,46 @@ function AddBatchModal({ userId, onClose }: any) {
         journey,
         qrCode: id
       });
+
+      // Send real-time notifications to any consumers who have previously viewed this farmer
+      try {
+        const q = query(collection(db, 'farmer_views'), where('farmerId', '==', userId));
+        const querySnapshot = await getDocs(q);
+        
+        let farmerName = 'Um produtor';
+        try {
+          const farmerDoc = await getDoc(doc(db, 'farmers', userId));
+          if (farmerDoc.exists()) {
+            farmerName = farmerDoc.data().name || farmerName;
+          }
+        } catch (err) {
+          console.error("Error fetching farmer name for notification:", err);
+        }
+
+        const viewerPromises = querySnapshot.docs.map(async (docSnap) => {
+          const viewData = docSnap.data();
+          const targetUserId = viewData.userId;
+          
+          if (targetUserId === userId) return;
+
+          const notifId = `NOTIF-${Math.random().toString(36).substring(2, 9).toUpperCase()}`;
+
+          await setDoc(doc(db, 'notifications', notifId), {
+            notificationId: notifId,
+            targetUserId,
+            farmerId: userId,
+            farmerName,
+            cropType: formData.cropType,
+            batchId: id,
+            createdAt: new Date().toISOString(),
+            read: false
+          });
+        });
+        await Promise.all(viewerPromises);
+      } catch (notifyErr) {
+        console.error("Error sending notifications to viewers:", notifyErr);
+      }
+
       onClose();
     } catch (e) {
       handleFirestoreError(e, OperationType.WRITE, `batches/${id}`);
