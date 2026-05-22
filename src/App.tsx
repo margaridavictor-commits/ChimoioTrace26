@@ -32,7 +32,8 @@ import {
   Home,
   Globe,
   Wifi,
-  WifiOff
+  WifiOff,
+  RefreshCw
 } from 'lucide-react';
 import { cn, formatDate } from './lib/utils';
 import { auth, db } from './lib/firebase';
@@ -735,7 +736,7 @@ export default function App() {
                       </div>
                     )}
                   </div>
-                  <span className="text-[10px] font-bold text-emerald-600/60 uppercase tracking-widest leading-none">Chimoio, MOZ</span>
+                  <span className="text-[10px] font-bold text-emerald-600/60 uppercase tracking-widest leading-none">Moçambique</span>
                 </motion.div>
               </div>
               
@@ -823,12 +824,16 @@ export default function App() {
               </button>
             </div>
 
-            <NavTab 
-              active={activeTab === 'farmer'} 
-              icon={ShieldCheck} 
-              label="Painel"
-              onClick={() => setActiveTab('farmer')} 
-            />
+            {user?.role === 'farmer' ? (
+              <NavTab 
+                active={activeTab === 'farmer'} 
+                icon={ShieldCheck} 
+                label="Painel"
+                onClick={() => setActiveTab('farmer')} 
+              />
+            ) : (
+              <div className="w-12 h-10 shrink-0" />
+            )}
             <NavTab 
               active={activeTab === 'consumer' && subTab === 'trace' && !!scannedBatch} 
               icon={History} 
@@ -1019,7 +1024,7 @@ function HomeView({ onExplore, onSelectBatch }: { onExplore: () => void, onSelec
           Saber de onde <br />
           <span className="text-emerald-600">Vem o seu Alimento.</span>
         </h2>
-        <p className="text-xs text-[#7C7A74] font-semibold tracking-wide uppercase">Chimoio • AgroTrace Rastreabilidade</p>
+        <p className="text-xs text-[#7C7A74] font-semibold tracking-wide uppercase">Moçambique • AgroTrace Rastreabilidade</p>
       </section>
 
       {/* Main Premium Banner */}
@@ -1035,7 +1040,7 @@ function HomeView({ onExplore, onSelectBatch }: { onExplore: () => void, onSelec
         <div className="absolute top-4 right-4 z-20 bg-amber-400 text-emerald-950 p-3.5 rounded-full flex flex-col items-center justify-center border-2 border-dashed border-amber-600 shadow-xl select-none rotate-12 scale-90 sm:scale-100 hover:rotate-6 transition-transform duration-300 w-24 h-24 text-center">
           <Globe className="w-5 h-5 text-emerald-900 mb-1 animate-pulse" />
           <span className="text-[8px] font-black tracking-tighter uppercase leading-none text-emerald-950">100% Rastreável</span>
-          <span className="text-[6px] font-bold tracking-tight uppercase text-emerald-900 leading-none mt-0.5">Chimoio • MOZ</span>
+          <span className="text-[6px] font-bold tracking-tight uppercase text-emerald-900 leading-none mt-0.5">Moçambique</span>
         </div>
 
         <div className="absolute bottom-6 left-6 right-6 z-20 space-y-3">
@@ -1104,7 +1109,7 @@ function HomeView({ onExplore, onSelectBatch }: { onExplore: () => void, onSelec
       <section className="space-y-3" id="home-realtime-farmers-section">
         <div className="flex justify-between items-center">
           <h4 className="font-extrabold text-[#2C2B29] text-xs uppercase tracking-widest leading-none">
-            Produtores Registados <span className="text-emerald-600 font-bold">• Direto de Chimoio</span>
+            Produtores Registados <span className="text-emerald-600 font-bold">• AgroTrace</span>
           </h4>
           {selectedFarmerId && (
             <button
@@ -1139,7 +1144,6 @@ function HomeView({ onExplore, onSelectBatch }: { onExplore: () => void, onSelec
           {Object.values(farmers).map(f => {
             const isSelected = selectedFarmerId === f.farmerId;
             const farmerMarketLots = batches.filter(b => b.farmerId === f.farmerId && b.status === 'market').length;
-            const fallbackAvatar = `https://api.dicebear.com/7.x/avataaars/svg?seed=${f.farmerId}`;
             
             return (
               <button
@@ -1159,15 +1163,21 @@ function HomeView({ onExplore, onSelectBatch }: { onExplore: () => void, onSelec
                   </span>
                 )}
                 
-                <img 
-                  src={f.photoUrl || fallbackAvatar}
-                  alt={f.name}
-                  className="w-10 h-10 object-cover rounded-full border border-gray-150 mb-2 shrink-0 bg-emerald-50"
-                  referrerPolicy="no-referrer"
-                />
+                {f.photoUrl ? (
+                  <img 
+                    src={f.photoUrl}
+                    alt={f.name}
+                    className="w-10 h-10 object-cover rounded-full border border-gray-150 mb-2 shrink-0 bg-emerald-50"
+                    referrerPolicy="no-referrer"
+                  />
+                ) : (
+                  <div className="w-10 h-10 rounded-full border border-gray-150 bg-gradient-to-br from-emerald-600 to-teal-750 text-white font-extrabold flex items-center justify-center text-center text-[10px] mb-2 shrink-0 shadow-sm leading-none select-none uppercase">
+                    {getInitials(f.name)}
+                  </div>
+                )}
                 <span className="text-[10px] font-extrabold truncate w-full leading-none text-emerald-950">{f.name}</span>
                 <span className="text-[8px] font-bold text-gray-400 block mt-1 uppercase tracking-wider truncate w-full leading-none">
-                  {f.province || 'Chimoio, MOZ'}
+                  {f.province || 'Moçambique'}
                 </span>
 
                 {/* Certification indicator */}
@@ -1350,11 +1360,17 @@ function HomeView({ onExplore, onSelectBatch }: { onExplore: () => void, onSelec
                       {/* Farmer Avatar/Name bottom bar */}
                       <div className="pt-3 border-t border-gray-100 flex items-center justify-between">
                         <div className="flex items-center gap-2 min-w-0">
-                          <img 
-                            src={farmer?.photoUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${b.farmerId}`} 
-                            className="w-7 h-7 rounded-lg object-cover bg-emerald-50 shrink-0 border border-emerald-100" 
-                            alt={farmer?.name || 'Cooperativa'} 
-                          />
+                          {farmer?.photoUrl ? (
+                            <img 
+                              src={farmer.photoUrl} 
+                              className="w-7 h-7 rounded-lg object-cover bg-emerald-50 shrink-0 border border-emerald-100" 
+                              alt={farmer?.name || 'Cooperativa'} 
+                            />
+                          ) : (
+                            <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-emerald-600 to-teal-750 text-white font-extrabold flex items-center justify-center text-center text-[10px] shrink-0 border border-emerald-100 uppercase select-none leading-none">
+                              {getInitials(farmer?.name || 'Produtor AgroTrace')}
+                            </div>
+                          )}
                           <div className="min-w-0">
                             <p className="text-[8px] font-bold text-[#8C8A84] uppercase tracking-tighter leading-none">Origem</p>
                             <p className="text-[10.5px] font-bold text-emerald-950 truncate max-w-[110px]">{farmer?.name || 'Produtor AgroTrace'}</p>
@@ -1455,7 +1471,7 @@ function GlobalMapView({ onSelectBatch }: { onSelectBatch: (b: Batch) => void })
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4" id="map-header">
         <div>
           <h2 className="text-3xl font-extrabold text-emerald-950 tracking-tight">Explorar Origens</h2>
-          <p className="text-[#5C5A54] text-xs font-semibold uppercase tracking-wider mt-1">Conheça de onde floresce o seu alimento em Chimoio</p>
+          <p className="text-[#5C5A54] text-xs font-semibold uppercase tracking-wider mt-1">Conheça de onde floresce o seu alimento no campo</p>
         </div>
         
         {/* Indicators map legend */}
@@ -1479,7 +1495,7 @@ function GlobalMapView({ onSelectBatch }: { onSelectBatch: (b: Batch) => void })
       <div className="relative" id="interactive-map-wrapper">
         <div className="h-[400px] sm:h-[480px] md:h-[550px] w-full rounded-[2.5rem] overflow-hidden border border-[#E5E2D9] relative shadow-lg z-0">
           <MapContainer 
-            center={[-19.116, 33.483]} 
+            center={batches.length > 0 && batches[0].location?.lat ? [batches[0].location.lat, batches[0].location.lng] : [-19.116, 33.483]} 
             zoom={12} 
             style={{ width: '100%', height: '100%' }}
             scrollWheelZoom={false}
@@ -1980,12 +1996,18 @@ function TraceView({ scannedBatch, forceSingleColumn = false }: { scannedBatch: 
         {farmer && (
           <div className="bg-white p-5 sm:p-8 rounded-3xl border border-[#E5E2D9] shadow-sm space-y-4">
             <div className="flex items-center gap-4">
-              <img src={farmer.photoUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${farmer.farmerId}`} className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl object-cover bg-emerald-50 shrink-0 border border-emerald-100 shadow-sm" alt={farmer.name} />
+              {farmer.photoUrl ? (
+                <img src={farmer.photoUrl} className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl object-cover bg-emerald-50 shrink-0 border border-emerald-100 shadow-sm" alt={farmer.name} />
+              ) : (
+                <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-gradient-to-br from-emerald-600 to-teal-750 text-white font-extrabold flex items-center justify-center text-center text-lg shrink-0 border border-emerald-100 shadow-sm uppercase select-none leading-none">
+                  {getInitials(farmer.name)}
+                </div>
+              )}
               <div className="min-w-0">
                 <p className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">Produtor Autorizado</p>
                 <h4 className="text-base sm:text-lg font-bold truncate text-emerald-950">{farmer.name}</h4>
                 <p className="text-xs text-emerald-600 flex items-center gap-1">
-                   <MapPin className="w-3 h-3 shrink-0" /> <span className="truncate">{farmer.province || 'Chimoio, Moçambique'}</span>
+                   <MapPin className="w-3 h-3 shrink-0" /> <span className="truncate">{farmer.province || 'Localização não declarada'}</span>
                 </p>
               </div>
             </div>
@@ -2075,7 +2097,7 @@ function TraceView({ scannedBatch, forceSingleColumn = false }: { scannedBatch: 
                   <div className="p-2">
                     <div className="font-bold text-emerald-900 text-base mb-1">{scannedBatch.cropType}</div>
                     <div className="text-[11px] text-gray-500 flex items-center gap-1">
-                      <MapPin className="w-3 h-3" /> Chimoio, Moçambique
+                      <MapPin className="w-3 h-3" /> {scannedBatch.locationName || 'Moçambique'}
                     </div>
                     <div className="mt-2 pt-2 border-t border-gray-100 text-[9px] font-bold text-emerald-600 uppercase tracking-wider">Origem Certificada</div>
                   </div>
@@ -2089,7 +2111,7 @@ function TraceView({ scannedBatch, forceSingleColumn = false }: { scannedBatch: 
             <div className="absolute top-4 left-4 z-10 flex flex-col gap-2 pointer-events-none select-none">
                <div className="bg-white/95 backdrop-blur-md px-3 py-1.5 rounded-xl shadow-md border border-gray-100/50 text-[10px] font-bold leading-none flex items-center gap-2">
                  <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
-                 <span className="text-emerald-900 uppercase tracking-widest">Origem: Chimoio Zone B</span>
+                 <span className="text-emerald-900 uppercase tracking-widest">Origem: {scannedBatch.locationName || 'Moçambique'}</span>
                </div>
             </div>
           )}
@@ -2160,6 +2182,307 @@ function TraceView({ scannedBatch, forceSingleColumn = false }: { scannedBatch: 
   );
 }
 
+function getInitials(name: string) {
+  if (!name) return 'U';
+  const parts = name.trim().split(/\s+/);
+  if (parts.length === 0) return 'U';
+  if (parts.length === 1) return parts[0].charAt(0).toUpperCase();
+  return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase().substring(0, 2);
+}
+
+function dataURLtoBlob(dataurl: string) {
+  const arr = dataurl.split(',');
+  const mimeMatch = arr[0].match(/:(.*?);/);
+  const mime = mimeMatch ? mimeMatch[1] : 'image/jpeg';
+  const bstr = atob(arr[1]);
+  let n = bstr.length;
+  const u8arr = new Uint8Array(n);
+  while (n--) {
+    u8arr[n] = bstr.charCodeAt(n);
+  }
+  return new Blob([u8arr], { type: mime });
+}
+
+interface CameraCaptureModalProps {
+  onCapture: (base64Image: string) => void;
+  onClose: () => void;
+  defaultFacingMode?: 'user' | 'environment';
+  title?: string;
+  subtitle?: string;
+}
+
+function CameraCaptureModal({ 
+  onCapture, 
+  onClose, 
+  defaultFacingMode = 'user',
+  title = 'Câmara AgroTrace',
+  subtitle = 'Fotografe uma foto nítida e profissional.'
+}: CameraCaptureModalProps) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [stream, setStream] = useState<MediaStream | null>(null);
+  const [errorStatus, setErrorStatus] = useState<string | null>(null);
+  const [captured, setCaptured] = useState<string | null>(null);
+  const [facingMode, setFacingMode] = useState<'user' | 'environment'>(defaultFacingMode);
+
+  useEffect(() => {
+    let activeStream: MediaStream | null = null;
+    setErrorStatus(null);
+
+    const initCamera = async () => {
+      try {
+        const s = await navigator.mediaDevices.getUserMedia({ 
+          video: { 
+            width: { ideal: 640 },
+            height: { ideal: 640 },
+            facingMode: facingMode 
+          } 
+        });
+        activeStream = s;
+        setStream(s);
+        if (videoRef.current) {
+          videoRef.current.srcObject = s;
+        }
+      } catch (err) {
+        console.warn("First camera constraint failed, retrying with simple constraints", err);
+        try {
+          const s = await navigator.mediaDevices.getUserMedia({ 
+            video: { facingMode: facingMode } 
+          });
+          activeStream = s;
+          setStream(s);
+          if (videoRef.current) {
+            videoRef.current.srcObject = s;
+          }
+        } catch (err2) {
+          console.warn("Second camera constraint failed, trying generic video", err2);
+          try {
+            const s = await navigator.mediaDevices.getUserMedia({ video: true });
+            activeStream = s;
+            setStream(s);
+            if (videoRef.current) {
+              videoRef.current.srcObject = s;
+            }
+          } catch (err3) {
+            console.error("All camera initialization attempts failed", err3);
+            setErrorStatus("Não foi possível acessar a câmera do telemóvel. Certifique-se de que forneceu as permissões necessárias no seu navegador.");
+          }
+        }
+      }
+    };
+
+    if (!captured) {
+      initCamera();
+    }
+
+    return () => {
+      if (activeStream) {
+        activeStream.getTracks().forEach(track => track.stop());
+      }
+    };
+  }, [facingMode, captured]);
+
+  const toggleFacingMode = () => {
+    if (stream) {
+      stream.getTracks().forEach(track => track.stop());
+      setStream(null);
+    }
+    setFacingMode(prev => prev === 'user' ? 'environment' : 'user');
+  };
+
+  const takePhoto = () => {
+    if (videoRef.current && canvasRef.current) {
+      const video = videoRef.current;
+      const canvas = canvasRef.current;
+      const size = Math.min(video.videoWidth, video.videoHeight);
+      canvas.width = size;
+      canvas.height = size;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        const startX = (video.videoWidth - size) / 2;
+        const startY = (video.videoHeight - size) / 2;
+        ctx.drawImage(video, startX, startY, size, size, 0, 0, size, size);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+        setCaptured(dataUrl);
+        if (stream) {
+          stream.getTracks().forEach(track => track.stop());
+        }
+      }
+    }
+  };
+
+  const handleConfirm = () => {
+    if (captured) {
+      onCapture(captured);
+    }
+  };
+
+  const retakePhoto = () => {
+    setCaptured(null);
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[110] flex items-center justify-center p-4">
+      <div className="bg-[#1C1B19] text-white rounded-[2rem] w-full max-w-md p-6 relative overflow-hidden border border-[#2C2B29] shadow-2xl">
+        <button onClick={onClose} className="absolute top-4 right-4 p-2 hover:bg-white/10 rounded-full transition-colors z-10">
+          <X className="w-5 h-5 text-gray-400" />
+        </button>
+
+        <div className="mb-4 text-center">
+          <h3 className="text-lg font-bold">{title}</h3>
+          <p className="text-[11px] text-[#8C8A84]">{subtitle}</p>
+        </div>
+
+        <div className="relative aspect-square w-full rounded-2xl overflow-hidden bg-black flex items-center justify-center border border-[#2C2B29]">
+          {errorStatus ? (
+            <div className="p-4 text-center space-y-2">
+              <Camera className="w-12 h-12 text-red-500 mx-auto opacity-50" />
+              <p className="text-xs text-red-400 font-semibold">{errorStatus}</p>
+            </div>
+          ) : captured ? (
+            <img src={captured} className="w-full h-full object-cover" alt="Captured" />
+          ) : (
+            <>
+              <video 
+                ref={videoRef} 
+                autoPlay 
+                playsInline 
+                muted
+                className={cn("w-full h-full object-cover", facingMode === 'user' ? "scale-x-[-1]" : "")} 
+              />
+              <div className="absolute inset-0 border-[24px] border-black/40 pointer-events-none rounded-2xl" />
+              <div className="absolute top-4 left-4 flex items-center gap-1.5 bg-black/60 px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider backdrop-blur-sm border border-white/5">
+                <span className="w-1.5 h-1.5 bg-rose-500 rounded-full animate-ping" />
+                <span>Em Direto</span>
+              </div>
+              
+              <button
+                type="button"
+                onClick={toggleFacingMode}
+                className="absolute top-4 right-4 bg-black/60 hover:bg-black/80 text-white p-2 rounded-xl transition-all border border-white/5 active:scale-95 flex items-center gap-1.5 text-xs font-bold z-20"
+                title="Inverter Câmara"
+              >
+                <RefreshCw className="w-4 h-4" />
+                <span className="hidden sm:inline">Inverter</span>
+              </button>
+            </>
+          )}
+        </div>
+
+        <canvas ref={canvasRef} className="hidden" />
+
+        <div className="mt-5 flex gap-3">
+          {captured ? (
+            <>
+              <button 
+                type="button"
+                onClick={retakePhoto}
+                className="flex-1 py-3 px-4 bg-white/10 hover:bg-white/15 text-white rounded-xl text-xs font-bold transition-all uppercase tracking-wider active:scale-95"
+              >
+                Tentar De Novo
+              </button>
+              <button 
+                type="button"
+                onClick={handleConfirm}
+                className="flex-1 py-3 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all uppercase tracking-wider shadow-lg shadow-emerald-600/20 active:scale-95"
+              >
+                Guardar Foto
+              </button>
+            </>
+          ) : (
+            <>
+              <button 
+                type="button"
+                onClick={onClose}
+                className="flex-1 py-3 px-4 bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white rounded-xl text-xs font-bold transition-all uppercase tracking-wider active:scale-95"
+              >
+                Cancelar
+              </button>
+              <button 
+                type="button"
+                disabled={!!errorStatus}
+                onClick={takePhoto}
+                className="flex-1 py-3 px-4 bg-emerald-600 hover:bg-emerald-700 disabled:bg-gray-800 disabled:text-gray-500 text-white rounded-xl text-xs font-bold transition-all uppercase tracking-wider shadow-lg shadow-emerald-600/20 active:scale-95 flex items-center justify-center gap-1.5"
+              >
+                <Camera className="w-4 h-4" />
+                <span>Capturar</span>
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PhotoActionModal({ isOpen, onClose, onSelectUpload, onSelectCamera, onRemovePhoto, hasPhoto }: any) {
+  if (!isOpen) return null;
+  return (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <motion.div 
+        initial={{ scale: 0.95, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        className="bg-white rounded-[2rem] w-full max-w-sm p-6 shadow-2xl relative overflow-hidden text-center border border-gray-100"
+      >
+        <button onClick={onClose} className="absolute top-4 right-4 p-2 hover:bg-gray-100 rounded-full transition-colors">
+          <X className="w-5 h-5 text-gray-400" />
+        </button>
+
+        <h3 className="text-lg font-bold text-emerald-950 mb-1">Foto de Perfil</h3>
+        <p className="text-xs text-gray-500 mb-5 text-[11px]">Escolha como deseja atualizar a fotografia do seu perfil de produtor.</p>
+
+        <div className="space-y-3">
+          <button 
+            type="button"
+            onClick={() => {
+              onSelectUpload();
+              onClose();
+            }}
+            className="w-full py-3.5 px-4 bg-emerald-50 hover:bg-emerald-100 border border-emerald-150 rounded-xl text-xs font-bold text-emerald-800 transition-all uppercase tracking-wider flex items-center justify-center gap-2 active:scale-95 duration-200"
+          >
+            <Upload className="w-4 h-4 text-emerald-600" />
+            <span>Computador ou Telemóvel</span>
+          </button>
+
+          <button 
+            type="button"
+            onClick={() => {
+              onSelectCamera();
+              onClose();
+            }}
+            className="w-full py-3.5 px-4 bg-emerald-750 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold transition-all uppercase tracking-wider flex items-center justify-center gap-2 shadow-md shadow-emerald-750/10 active:scale-95 duration-200"
+          >
+            <Camera className="w-4 h-4 text-white" />
+            <span>Câmara Fotográfica</span>
+          </button>
+
+          {hasPhoto && (
+            <button 
+              type="button"
+              onClick={() => {
+                onRemovePhoto();
+                onClose();
+              }}
+              className="w-full py-3.5 px-4 bg-red-50 hover:bg-red-100 text-red-700 rounded-xl text-xs font-bold transition-all uppercase tracking-wider flex items-center justify-center gap-2 active:scale-95 duration-200"
+            >
+              <Trash2 className="w-4 h-4 text-red-600" />
+              <span>Remover Foto Atual</span>
+            </button>
+          )}
+
+          <button 
+            type="button"
+            onClick={onClose}
+            className="w-full py-3.5 px-4 bg-gray-50 hover:bg-gray-100 text-gray-400 hover:text-gray-700 rounded-xl text-xs font-bold transition-all uppercase tracking-wider flex items-center justify-center gap-2 active:scale-95 duration-200"
+          >
+            Fechar
+          </button>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
 function FarmerPortal({ user, login, logout }: { user: UserProfile | null, login: () => void, logout: () => void }) {
   const [batches, setBatches] = useState<Batch[]>([]);
   const [showAdd, setShowAdd] = useState(false);
@@ -2168,6 +2491,50 @@ function FarmerPortal({ user, login, logout }: { user: UserProfile | null, login
   const [farmerData, setFarmerData] = useState<Farmer | null>(null);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [showPhotoSelector, setShowPhotoSelector] = useState(false);
+  const [showCamera, setShowCamera] = useState(false);
+
+  const handleCameraCapture = async (base64Data: string) => {
+    if (!user) return;
+    setUploading(true);
+    setShowCamera(false);
+    try {
+      const blob = dataURLtoBlob(base64Data);
+      const timestamp = new Date().getTime();
+      const storageRef = ref(storage, `profile_photos/${user.uid}/${timestamp}_camera.jpg`);
+      await uploadBytes(storageRef, blob);
+      const photoUrl = await getDownloadURL(storageRef);
+
+      await Promise.all([
+        updateDoc(doc(db, 'users', user.uid), { photoUrl }),
+        updateDoc(doc(db, 'farmers', user.uid), { photoUrl })
+      ]);
+
+      showToast('Foto do perfil capturada com sucesso!', 'success');
+    } catch (error) {
+      console.error('Error uploading camera capture:', error);
+      showToast('Erro ao carregar a foto da câmara.', 'error');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleRemovePhoto = async () => {
+    if (!user) return;
+    setUploading(true);
+    try {
+      await Promise.all([
+        updateDoc(doc(db, 'users', user.uid), { photoUrl: '' }),
+        updateDoc(doc(db, 'farmers', user.uid), { photoUrl: '' })
+      ]);
+      showToast('Foto de perfil removida!', 'success');
+    } catch (error) {
+      console.error('Error removing photo:', error);
+      showToast('Erro ao remover foto.', 'error');
+    } finally {
+      setUploading(false);
+    }
+  };
 
   useEffect(() => {
     if (user) {
@@ -2321,7 +2688,7 @@ function FarmerPortal({ user, login, logout }: { user: UserProfile | null, login
 
         <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6">
            <div 
-             onClick={() => !uploading && fileInputRef.current?.click()}
+             onClick={() => !uploading && setShowPhotoSelector(true)}
              className="w-24 h-24 sm:w-28 sm:h-28 bg-emerald-100 rounded-[2.5rem] overflow-hidden border-4 border-white shadow-xl relative cursor-pointer group/avatar shrink-0 transform hover:rotate-2 transition-transform"
            >
               {uploading ? (
@@ -2333,10 +2700,17 @@ function FarmerPortal({ user, login, logout }: { user: UserProfile | null, login
                   <Camera className="w-8 h-8 text-white" />
                 </div>
               )}
-              <img 
-                src={farmerData?.photoUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.uid}`} 
-                className="w-full h-full object-cover" 
-              />
+              {farmerData?.photoUrl ? (
+                <img 
+                  src={farmerData.photoUrl} 
+                  className="w-full h-full object-cover animate-none" 
+                  alt={farmerData.name || user.displayName || 'Produtor'}
+                />
+              ) : (
+                <div className="w-full h-full bg-gradient-to-br from-emerald-600 to-teal-750 text-white font-extrabold flex items-center justify-center text-center text-3xl uppercase leading-none select-none">
+                  {getInitials(farmerData?.name || user.displayName || '')}
+                </div>
+              )}
            </div>
            <div className="flex-1 text-center sm:text-left space-y-3">
               <div className="space-y-1">
@@ -2650,6 +3024,23 @@ function FarmerPortal({ user, login, logout }: { user: UserProfile | null, login
         <BatchHistoryModal 
           batch={batches.find(b => b.batchId === selectedBatch.batchId) || selectedBatch} 
           onClose={() => setSelectedBatch(null)} 
+          
+        />
+      )}
+      {showPhotoSelector && (
+        <PhotoActionModal 
+          isOpen={showPhotoSelector}
+          onClose={() => setShowPhotoSelector(false)}
+          onSelectUpload={() => fileInputRef.current?.click()}
+          onSelectCamera={() => setShowCamera(true)}
+          onRemovePhoto={handleRemovePhoto}
+          hasPhoto={!!farmerData?.photoUrl}
+        />
+      )}
+      {showCamera && (
+        <CameraCaptureModal 
+          onCapture={handleCameraCapture}
+          onClose={() => setShowCamera(false)}
         />
       )}
       <div className="h-20"></div>
@@ -2883,6 +3274,7 @@ function RegisterForm({ lang, onBack, onRegister }: any) {
     location: '',
     password: ''
   });
+  const [coords, setCoords] = useState<{ lat: number, lng: number } | null>(null);
   const [noEmail, setNoEmail] = useState(false);
   const [detecting, setDetecting] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -2910,6 +3302,7 @@ function RegisterForm({ lang, onBack, onRegister }: any) {
     try {
       await onRegister({
         ...formData,
+        coords,
         noEmail
       });
     } catch (error: any) {
@@ -2928,18 +3321,44 @@ function RegisterForm({ lang, onBack, onRegister }: any) {
 
     setDetecting(true);
     navigator.geolocation.getCurrentPosition(
-      (position) => {
+      async (position) => {
         const { latitude, longitude } = position.coords;
-        const locString = `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
-        setFormData(prev => ({ ...prev, location: locString }));
-        setDetecting(false);
+        setCoords({ lat: latitude, lng: longitude });
+        try {
+          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=12&addressdetails=1`, {
+            headers: { 'Accept-Language': 'pt' }
+          });
+          if (res.ok) {
+            const data = await res.json();
+            const address = data.address || {};
+            const cityOrTown = address.city || address.town || address.village || address.municipality || address.suburb || address.city_district || '';
+            const stateOrProvince = address.state || address.region || address.county || '';
+            let placeName = '';
+            if (cityOrTown && stateOrProvince) {
+              placeName = `${cityOrTown}, ${stateOrProvince}`;
+            } else if (stateOrProvince) {
+              placeName = stateOrProvince;
+            } else {
+              placeName = data.display_name?.split(',').slice(0, 2).join(',') || `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
+            }
+            setFormData(prev => ({ ...prev, location: placeName }));
+            showToast(lang === 'pt' ? `Localização detetada: ${placeName}` : `Location detected: ${placeName}`, 'success');
+          } else {
+            setFormData(prev => ({ ...prev, location: `${latitude.toFixed(4)}, ${longitude.toFixed(4)}` }));
+          }
+        } catch (err) {
+          console.error('Error reverse geocoding:', err);
+          setFormData(prev => ({ ...prev, location: `${latitude.toFixed(4)}, ${longitude.toFixed(4)}` }));
+        } finally {
+          setDetecting(false);
+        }
       },
       (error) => {
         console.error('Error detecting location:', error);
         showToast(lang === 'pt' ? 'Não foi possível detectar a sua localização atual.' : 'Could not detect your location.', 'error');
         setDetecting(false);
       },
-      { enableHighAccuracy: true }
+      { enableHighAccuracy: true, timeout: 10000 }
     );
   };
 
@@ -3122,12 +3541,91 @@ function EditProfileModal({ farmer, userId, onClose, onSave, onDeleteAccount }: 
   const [photoUrl, setPhotoUrl] = useState(farmer?.photoUrl || '');
   const [name, setName] = useState(farmer?.name || '');
   const [bio, setBio] = useState(farmer?.bio || '');
-  const [province, setProvince] = useState(farmer?.province || 'Manica');
+  const [province, setProvince] = useState(farmer?.province || '');
+  const [coords, setCoords] = useState<{ lat: number, lng: number } | null>(farmer?.location || null);
+  const [detectingLoc, setDetectingLoc] = useState(false);
   const [phoneNumber, setPhoneNumber] = useState(farmer?.phoneNumber || '');
   const [gapId, setGapId] = useState(farmer?.gapId || '');
   const [certificationStatus, setCertificationStatus] = useState(farmer?.certificationStatus || 'certified');
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [showPhotoSelector, setShowPhotoSelector] = useState(false);
+  const [showCamera, setShowCamera] = useState(false);
+
+  const detectProfileLocation = () => {
+    if (!navigator.geolocation) {
+      showToast('Geolocalização não suportada no seu dispositivo.', 'info');
+      return;
+    }
+
+    setDetectingLoc(true);
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const { latitude, longitude } = position.coords;
+        setCoords({ lat: latitude, lng: longitude });
+        try {
+          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=12&addressdetails=1`, {
+            headers: { 'Accept-Language': 'pt' }
+          });
+          if (res.ok) {
+            const data = await res.json();
+            const address = data.address || {};
+            const cityOrTown = address.city || address.town || address.village || address.municipality || address.suburb || address.city_district || '';
+            const stateOrProvince = address.state || address.region || address.county || '';
+            let placeName = '';
+            if (cityOrTown && stateOrProvince) {
+              placeName = `${cityOrTown}, ${stateOrProvince}`;
+            } else if (stateOrProvince) {
+              placeName = stateOrProvince;
+            } else {
+              placeName = data.display_name?.split(',').slice(0, 2).join(',') || `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
+            }
+            setProvince(placeName);
+            showToast(`Localização detetada: ${placeName}`, 'success');
+          } else {
+            setProvince(`${latitude.toFixed(4)}, ${longitude.toFixed(4)}`);
+          }
+        } catch (err) {
+          console.error("Reverse geocoding failed", err);
+          setProvince(`${latitude.toFixed(4)}, ${longitude.toFixed(4)}`);
+        } finally {
+          setDetectingLoc(false);
+        }
+      },
+      (error) => {
+        console.error('Error detecting location:', error);
+        showToast('Não foi possível obter a sua localização atual do telemóvel.', 'error');
+        setDetectingLoc(false);
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  };
+
+  const handleCameraCapture = async (base64Data: string) => {
+    setUploading(true);
+    setShowCamera(false);
+    try {
+      const blob = dataURLtoBlob(base64Data);
+      const timestamp = new Date().getTime();
+      const storageRef = ref(storage, `profiles/${userId}/${timestamp}_camera.jpg`);
+      const snapshot = await uploadBytes(storageRef, blob);
+      const url = await getDownloadURL(snapshot.ref);
+      setPhotoUrl(url);
+      showToast('Foto da câmara capturada!', 'success');
+    } catch (error) {
+      console.error('Error uploading camera capture:', error);
+      showToast('Erro ao carregar a foto da câmara.', 'error');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleRemovePhoto = () => {
+    setPhotoUrl('');
+    showToast('Foto removida no editor.', 'info');
+  };
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deletingAccount, setDeletingAccount] = useState(false);
@@ -3208,6 +3706,7 @@ function EditProfileModal({ farmer, userId, onClose, onSave, onDeleteAccount }: 
         phoneNumber,
         gapId,
         certificationStatus,
+        location: coords,
         farmerId: userId
       };
       try {
@@ -3252,34 +3751,47 @@ function EditProfileModal({ farmer, userId, onClose, onSave, onDeleteAccount }: 
 
         <div className="space-y-4 overflow-y-auto max-h-[70vh] pr-1 scrollbar-thin">
           <div className="flex flex-col sm:flex-row items-center gap-6 bg-emerald-50/50 p-4 rounded-2xl border border-emerald-100/30">
-            <div className="w-20 h-20 bg-emerald-100 rounded-2xl overflow-hidden border-2 border-white shadow-md shrink-0">
-               <img 
-                 src={photoUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${userId}`} 
-                 className="w-full h-full object-cover" 
-                 onError={(e) => {
-                   (e.target as HTMLImageElement).src = `https://api.dicebear.com/7.x/avataaars/svg?seed=${userId}`;
-                 }}
-               />
+            <div 
+              onClick={() => !uploading && setShowPhotoSelector(true)}
+              className="w-20 h-20 bg-emerald-100 rounded-2xl overflow-hidden border-2 border-white shadow-md shrink-0 cursor-pointer hover:opacity-85"
+            >
+               {photoUrl ? (
+                 <img 
+                   src={photoUrl} 
+                   className="w-full h-full object-cover" 
+                   alt="Foto do Produtor"
+                 />
+               ) : (
+                 <div className="w-full h-full bg-gradient-to-br from-emerald-600 to-teal-750 text-white font-extrabold flex items-center justify-center text-center text-2xl uppercase select-none leading-none">
+                   {getInitials(name || 'Produtor')}
+                 </div>
+               )}
             </div>
             <div className="flex-1 w-full space-y-2">
               <label className="text-[10px] font-bold text-emerald-800 uppercase tracking-widest ml-1">Fotografia do Produtor</label>
               <div className="flex items-center gap-2">
-                <label className={cn(
-                  "flex-1 flex flex-row items-center justify-center gap-2 p-3 border-2 border-dashed rounded-xl cursor-pointer transition-all bg-white text-emerald-950",
-                  uploading ? "border-emerald-300 opacity-70" : "border-emerald-200 hover:border-emerald-400"
-                )}>
+                <button 
+                  type="button"
+                  onClick={() => !uploading && setShowPhotoSelector(true)}
+                  className={cn(
+                    "flex-1 flex flex-row items-center justify-center gap-2 p-3 border-2 border-dashed rounded-xl cursor-pointer transition-all bg-white text-emerald-950",
+                    uploading ? "border-emerald-300 opacity-70" : "border-emerald-200 hover:border-emerald-400"
+                  )}
+                  disabled={uploading}
+                >
                   {uploading ? (
                     <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-emerald-600"></div>
                   ) : (
                     <Camera className="w-4 h-4 text-emerald-600" />
                   )}
                   <span className="text-[10px] font-bold uppercase tracking-wider">
-                    {uploading ? 'A Carregar...' : 'Escolher Foto'}
+                    {uploading ? 'A Carregar...' : 'Alterar Foto'}
                   </span>
-                  <input type="file" className="hidden" accept="image/*" onChange={handleFileUpload} disabled={uploading} />
-                </label>
+                </button>
+                <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleFileUpload} />
                 {photoUrl && (
                   <button 
+                   type="button"
                    onClick={() => setPhotoUrl('')}
                    className="p-3 bg-red-50 text-red-600 rounded-xl hover:bg-red-100 transition-colors"
                    title="Remover Foto"
@@ -3305,23 +3817,25 @@ function EditProfileModal({ farmer, userId, onClose, onSave, onDeleteAccount }: 
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">Província (Moçambique)</label>
-                <select 
-                  className="w-full bg-gray-50 border border-gray-100 rounded-xl py-3 px-3.5 text-sm focus:ring-2 focus:ring-emerald-600 outline-none transition-all"
-                  value={province}
-                  onChange={e => setProvince(e.target.value)}
-                >
-                  <option value="Manica">Manica (Chimoio)</option>
-                  <option value="Sofala">Sofala (Beira)</option>
-                  <option value="Tete">Tete</option>
-                  <option value="Zambézia">Zambézia</option>
-                  <option value="Nampula">Nampula</option>
-                  <option value="Niassa">Niassa</option>
-                  <option value="Cabo Delgado">Cabo Delgado</option>
-                  <option value="Gaza">Gaza</option>
-                  <option value="Inhambane">Inhambane</option>
-                  <option value="Maputo">Maputo</option>
-                </select>
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">Localização / Província</label>
+                <div className="relative">
+                  <input 
+                    type="text" 
+                    className="w-full bg-gray-50 border border-gray-100 rounded-xl py-3 pl-4 pr-12 text-sm focus:ring-2 focus:ring-emerald-600 outline-none transition-all font-medium"
+                    value={province}
+                    onChange={e => setProvince(e.target.value)}
+                    placeholder="e.g. Chimoio, Manica"
+                  />
+                  <button 
+                    type="button"
+                    onClick={detectProfileLocation}
+                    disabled={detectingLoc}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 p-2 bg-emerald-100 text-emerald-600 rounded-xl hover:bg-emerald-200 transition-colors disabled:opacity-50"
+                    title="Detectar com GPS do telemóvel"
+                  >
+                    <LocateFixed className={cn("w-4 h-4", detectingLoc && "animate-pulse")} />
+                  </button>
+                </div>
               </div>
 
               <div className="space-y-1.5">
@@ -3443,6 +3957,22 @@ function EditProfileModal({ farmer, userId, onClose, onSave, onDeleteAccount }: 
           </div>
         </div>
       </motion.div>
+      {showPhotoSelector && (
+        <PhotoActionModal 
+          isOpen={showPhotoSelector}
+          onClose={() => setShowPhotoSelector(false)}
+          onSelectUpload={() => fileInputRef.current?.click()}
+          onSelectCamera={() => setShowCamera(true)}
+          onRemovePhoto={handleRemovePhoto}
+          hasPhoto={!!photoUrl}
+        />
+      )}
+      {showCamera && (
+        <CameraCaptureModal 
+          onCapture={handleCameraCapture}
+          onClose={() => setShowCamera(false)}
+        />
+      )}
     </div>
   );
 }
@@ -4176,9 +4706,7 @@ function AddBatchModal({ userId, onClose }: any) {
   const [stepTimestamp, setStepTimestamp] = useState(new Date().toISOString().slice(0, 16));
   const [addedSteps, setAddedSteps] = useState<{ timestamp: string; location: string; description: string }[]>([]);
 
-  const [showLiveCamera, setShowLiveCamera] = useState(false);
-  const videoRef = useRef<HTMLVideoElement | null>(null);
-  const streamRef = useRef<MediaStream | null>(null);
+  const [showCameraModal, setShowCameraModal] = useState(false);
 
   const compressImage = (base64Str: string): Promise<string> => {
     return new Promise((resolve) => {
@@ -4214,51 +4742,6 @@ function AddBatchModal({ userId, onClose }: any) {
     });
   };
 
-  const startCamera = async () => {
-    try {
-      setShowLiveCamera(true);
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment', width: { ideal: 400 }, height: { ideal: 300 } }
-      });
-      streamRef.current = stream;
-      setTimeout(() => {
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-        }
-      }, 150);
-    } catch (err) {
-      console.error("Camera access error:", err);
-      showToast("Acesso à câmara não permitido ou indisponível. Por favor, use a opção de carregar ficheiro.");
-      setShowLiveCamera(false);
-    }
-  };
-
-  const stopCamera = () => {
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach(track => track.stop());
-      streamRef.current = null;
-    }
-    setShowLiveCamera(false);
-  };
-
-  const captureSnapshot = () => {
-    if (videoRef.current) {
-      const video = videoRef.current;
-      const canvas = document.createElement('canvas');
-      canvas.width = video.videoWidth || 400;
-      canvas.height = video.videoHeight || 300;
-      const ctx = canvas.getContext('2d');
-      if (ctx) {
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-        const base64 = canvas.toDataURL('image/jpeg', 0.7);
-        compressImage(base64).then((compressed) => {
-          setFormData(prev => ({ ...prev, photoUrl: compressed }));
-          stopCamera();
-        });
-      }
-    }
-  };
-
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -4272,14 +4755,6 @@ function AddBatchModal({ userId, onClose }: any) {
       reader.readAsDataURL(file);
     }
   };
-
-  useEffect(() => {
-    return () => {
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach(track => track.stop());
-      }
-    };
-  }, []);
 
   const save = async () => {
     const id = `BATCH-${Math.random().toString(36).substring(2, 9).toUpperCase()}`;
@@ -4451,76 +4926,60 @@ function AddBatchModal({ userId, onClose }: any) {
               <Camera className="w-4 h-4 text-emerald-600" /> Imagem do Lote / Tirar Foto
             </label>
             <div className="space-y-3">
-              {showLiveCamera ? (
-                <div className="relative border-2 border-emerald-500 rounded-2xl overflow-hidden bg-black h-48 flex flex-col items-center justify-center">
-                  <video 
-                    ref={videoRef} 
-                    autoPlay 
-                    playsInline 
-                    className="w-full h-full object-cover"
-                  />
-                  <div className="absolute bottom-3 left-0 right-0 flex justify-center gap-3">
+              <div className="relative border-2 border-dashed border-gray-200 hover:border-emerald-500 rounded-2xl overflow-hidden h-40 flex flex-col items-center justify-center bg-gray-50/50 transition-all">
+                {formData.photoUrl ? (
+                  <>
+                    <img src={formData.photoUrl} className="w-full h-full object-cover" alt="Lote" referrerPolicy="no-referrer" />
                     <button
                       type="button"
-                      onClick={captureSnapshot}
-                      className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs uppercase px-4 py-2 rounded-xl shadow-lg"
+                      onClick={() => setFormData(prev => ({ ...prev, photoUrl: '' }))}
+                      className="absolute top-2 right-2 bg-black/60 hover:bg-red-600 text-white p-1.5 rounded-full transition-colors backdrop-blur-sm shadow-md"
                     >
-                      Capturar Foto
+                      <X className="w-4 h-4" />
                     </button>
-                    <button
-                      type="button"
-                      onClick={stopCamera}
-                      className="bg-gray-800 hover:bg-gray-700 text-white font-bold text-xs uppercase px-4 py-2 rounded-xl shadow-lg"
-                    >
-                      Cancelar
-                    </button>
+                  </>
+                ) : (
+                  <div className="text-center p-4">
+                    <Camera className="w-8 h-8 text-gray-300 mx-auto mb-1 animate-pulse" />
+                    <p className="text-xs font-bold text-gray-500">Nenhuma imagem adicionada</p>
+                    <p className="text-[10px] text-gray-400 mt-1">Carregue ou utilize um dos atalhos abaixo</p>
                   </div>
-                </div>
-              ) : (
-                <div className="relative border-2 border-dashed border-gray-200 hover:border-emerald-500 rounded-2xl overflow-hidden h-40 flex flex-col items-center justify-center bg-gray-50/50 transition-all">
-                  {formData.photoUrl ? (
-                    <>
-                      <img src={formData.photoUrl} className="w-full h-full object-cover" alt="Lote" referrerPolicy="no-referrer" />
-                      <button
-                        type="button"
-                        onClick={() => setFormData(prev => ({ ...prev, photoUrl: '' }))}
-                        className="absolute top-2 right-2 bg-black/60 hover:bg-red-600 text-white p-1.5 rounded-full transition-colors backdrop-blur-sm shadow-md"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                    </>
-                  ) : (
-                    <div className="text-center p-4">
-                      <Camera className="w-8 h-8 text-gray-300 mx-auto mb-1 animate-pulse" />
-                      <p className="text-xs font-bold text-gray-500">Nenhuma imagem adicionada</p>
-                      <p className="text-[10px] text-gray-400 mt-1">Carregue ou utilize um dos atalhos abaixo</p>
-                    </div>
-                  )}
-                </div>
-              )}
+                )}
+              </div>
 
-              {!showLiveCamera && (
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={startCamera}
-                    className="flex items-center justify-center gap-2 py-3 px-3 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-xl text-xs font-bold uppercase tracking-wider transition-colors border border-emerald-200/50"
-                  >
-                    <Camera className="w-4 h-4" />
-                    Câmara em Directo
-                  </button>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowCameraModal(true)}
+                  className="flex items-center justify-center gap-2 py-3 px-3 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-xl text-xs font-bold uppercase tracking-wider transition-colors border border-emerald-200/50"
+                >
+                  <Camera className="w-4 h-4" />
+                  Câmara em Directo
+                </button>
 
-                  <label className="flex items-center justify-center gap-2 py-3 px-3 bg-gray-50 hover:bg-gray-100 text-gray-600 rounded-xl cursor-pointer text-xs font-bold uppercase tracking-wider transition-colors border border-gray-200 text-center">
-                    Ficheiro / Foto
-                    <input
-                      type="file"
-                      accept="image/*"
-                      capture="environment"
-                      className="hidden"
-                      onChange={handleImageUpload}
-                    />
-                  </label>
-                </div>
+                <label className="flex items-center justify-center gap-2 py-3 px-3 bg-gray-50 hover:bg-gray-100 text-gray-600 rounded-xl cursor-pointer text-xs font-bold uppercase tracking-wider transition-colors border border-gray-200 text-center">
+                  Ficheiro / Foto
+                  <input
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    className="hidden"
+                    onChange={handleImageUpload}
+                  />
+                </label>
+              </div>
+
+              {showCameraModal && (
+                <CameraCaptureModal
+                  defaultFacingMode="environment"
+                  title="Fotografar Lote"
+                  subtitle="Tire uma foto nítida dos seus produtos agrícolas para o lote."
+                  onCapture={(base64) => {
+                    setFormData(prev => ({ ...prev, photoUrl: base64 }));
+                    setShowCameraModal(false);
+                  }}
+                  onClose={() => setShowCameraModal(false)}
+                />
               )}
 
               <div className="flex gap-1 overflow-x-auto py-1 invisible-scrollbar">
