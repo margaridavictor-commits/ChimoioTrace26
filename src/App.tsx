@@ -2676,13 +2676,13 @@ function FarmerPortal({ user, login, logout }: { user: UserProfile | null, login
           accept="image/*" 
           onChange={handlePhotoUpload} 
         />
-        <div className="absolute top-0 right-0 p-6 flex gap-2">
+        <div className="absolute top-4 right-4 z-10 flex gap-2">
            <button 
             onClick={() => setShowEditProfile(true)}
-            className="p-3 bg-gray-50 rounded-2xl text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 active:scale-90 transition-all shadow-sm"
+            className="p-2.5 bg-[#FAF8F5] border border-[#E5E2D9] rounded-xl text-gray-500 hover:text-emerald-600 hover:bg-emerald-50 hover:border-emerald-250 active:scale-95 transition-all shadow-sm flex items-center justify-center"
             title="Editar Perfil"
            >
-             <Edit className="w-5 h-5" />
+             <Edit className="w-4 h-4" />
            </button>
         </div>
 
@@ -2705,6 +2705,7 @@ function FarmerPortal({ user, login, logout }: { user: UserProfile | null, login
                   src={farmerData.photoUrl} 
                   className="w-full h-full object-cover animate-none" 
                   alt={farmerData.name || user.displayName || 'Produtor'}
+                  referrerPolicy="no-referrer"
                 />
               ) : (
                 <div className="w-full h-full bg-gradient-to-br from-emerald-600 to-teal-750 text-white font-extrabold flex items-center justify-center text-center text-3xl uppercase leading-none select-none">
@@ -2712,7 +2713,7 @@ function FarmerPortal({ user, login, logout }: { user: UserProfile | null, login
                 </div>
               )}
            </div>
-           <div className="flex-1 text-center sm:text-left space-y-3">
+           <div className="flex-1 text-center sm:text-left space-y-3 pr-10 sm:pr-14">
               <div className="space-y-1">
                  <h3 className="font-bold text-2xl text-emerald-950 tracking-tight">{farmerData?.name || user.displayName}</h3>
                  <div className="flex items-center justify-center sm:justify-start gap-2">
@@ -2741,62 +2742,22 @@ function FarmerPortal({ user, login, logout }: { user: UserProfile | null, login
               )}
            </div>
         </div>
-
-        <div className="mt-6 pt-6 border-t border-gray-100 grid grid-cols-2 lg:grid-cols-4 gap-3">
-          <div className="bg-emerald-50/40 p-4 rounded-2xl border border-emerald-100/30 text-center flex flex-col justify-center items-center shadow-sm hover:scale-[1.02] transition-transform">
-             <div className="w-8 h-8 bg-emerald-100/80 rounded-xl flex items-center justify-center mb-1.5 shadow-sm">
-                <Leaf className="w-4 h-4 text-emerald-600" />
-             </div>
-             <span className="text-[9px] font-bold text-emerald-800/80 uppercase tracking-wider block">Lotes</span>
-             <span className="font-black text-lg text-emerald-950 leading-none mt-0.5">{batches.length}</span>
-          </div>
-
-          <div className="bg-blue-50/40 p-4 rounded-2xl border border-blue-100/30 text-center flex flex-col justify-center items-center shadow-sm hover:scale-[1.02] transition-transform">
-             <div className="w-8 h-8 bg-blue-100/80 rounded-xl flex items-center justify-center mb-1.5 shadow-sm">
-                <MapPin className="w-4 h-4 text-blue-600" />
-             </div>
-             <span className="text-[9px] font-bold text-blue-800/80 uppercase tracking-wider block">Província</span>
-             <span className="font-black text-xs text-blue-900 leading-none mt-1 truncate max-w-full">
-                {farmerData?.province || 'Manica'}
-             </span>
-          </div>
-
-          <div className="bg-amber-50/40 p-4 rounded-2xl border border-amber-100/30 text-center flex flex-col justify-center items-center shadow-sm hover:scale-[1.02] transition-transform">
-             <div className="w-8 h-8 bg-amber-100/80 rounded-xl flex items-center justify-center mb-1.5 shadow-sm">
-                <ShieldCheck className="w-4 h-4 text-amber-600" />
-             </div>
-             <span className="text-[9px] font-bold text-amber-800/80 uppercase tracking-wider block">Global G.A.P.</span>
-             <span className="font-black text-[10px] text-amber-950 leading-none mt-1 uppercase tracking-tighter">
-                {(farmerData?.certificationStatus === 'certified' || !farmerData?.certificationStatus) ? 'Certificado' : 
-                 farmerData?.certificationStatus === 'pending' ? 'Pendente' :
-                 farmerData?.certificationStatus === 'expired' ? 'Expirado' : 'Sem Registo'}
-             </span>
-          </div>
-
-          <div className="bg-indigo-50/40 p-4 rounded-2xl border border-indigo-100/30 text-center flex flex-col justify-center items-center shadow-sm hover:scale-[1.02] transition-transform">
-             <div className="w-8 h-8 bg-indigo-100/80 rounded-xl flex items-center justify-center mb-1.5 shadow-sm">
-                <Phone className="w-4 h-4 text-indigo-600" />
-             </div>
-             <span className="text-[9px] font-bold text-indigo-800/80 uppercase tracking-wider block">Contacto</span>
-             <span className="font-black text-xs text-indigo-950 leading-none mt-1 truncate max-w-full font-mono">
-                {farmerData?.phoneNumber || 'Não definido'}
-             </span>
-          </div>
-        </div>
       </section>
 
       {/* Batches Section */}
       <section className="space-y-6">
-        <div className="flex items-center justify-between">
-           <div className="space-y-0.5">
+        <div className="flex flex-col xs:flex-row xs:items-center justify-between gap-4">
+           <div className="space-y-0.5 text-left">
              <h4 className="font-black text-emerald-950 text-xl tracking-tight">O Meu Inventário</h4>
              <p className="text-xs text-gray-400">Gerir e monitorizar o estado de distribuição dos seus lotes agrícolas</p>
            </div>
            <button 
             onClick={() => setShowAdd(true)}
-            className="w-12 h-12 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl flex items-center justify-center active:scale-95 transition-transform shadow-xl shadow-emerald-600/30"
+            className="px-4 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-[11px] uppercase tracking-wider rounded-2xl flex items-center justify-center gap-2 shadow-xl shadow-emerald-600/20 hover:shadow-emerald-600/30 active:scale-95 transition-all text-center shrink-0 border-b-2 border-emerald-800"
+            title="Adicionar Novo Lote"
            >
-             <Plus className="w-6 h-6" />
+             <Plus className="w-4 h-4" />
+             <span>Adicionar Novo Lote</span>
            </button>
         </div>
  
@@ -2822,49 +2783,41 @@ function FarmerPortal({ user, login, logout }: { user: UserProfile | null, login
             )}
           </div>
 
-          <div className="flex flex-col gap-2">
-            <div className="flex gap-2 overflow-x-auto pb-1 invisible-scrollbar">
-              {[
-                { id: 'all', label: 'Todos os Períodos' },
-                { id: '30d', label: 'Últimos 30 dias' },
-                { id: '6m', label: '6 Meses' },
-                { id: '1y', label: '1 Ano' }
-              ].map(f => (
-                <button
-                  key={f.id}
-                  onClick={() => setFilter(f.id as any)}
-                  className={cn(
-                    "px-4 py-2 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all shrink-0 border",
-                    filter === f.id 
-                      ? "bg-emerald-600 text-white border-emerald-600 shadow-md" 
-                      : "bg-white text-gray-400 border-[#E5E2D9] hover:border-emerald-300 cursor-pointer"
-                  )}
-                >
-                  {f.label}
-                </button>
-              ))}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="relative">
+              <select
+                value={filter}
+                onChange={(e) => setFilter(e.target.value as any)}
+                className="w-full bg-[#FAF8F5] border border-[#E5E2D9] rounded-2xl py-3.5 pl-4 pr-10 text-[11px] font-bold uppercase tracking-wider text-emerald-900 outline-none focus:ring-2 focus:ring-emerald-600 focus:border-transparent transition-all shadow-sm appearance-none cursor-pointer"
+              >
+                <option value="all">Todos os Períodos</option>
+                <option value="30d">Últimos 30 dias</option>
+                <option value="6m">6 Meses</option>
+                <option value="1y">1 Ano</option>
+              </select>
+              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3.5 text-emerald-700">
+                <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
+                  <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" />
+                </svg>
+              </div>
             </div>
 
-            <div className="flex gap-2 overflow-x-auto pb-1 invisible-scrollbar">
-              {[
-                { id: 'all', label: 'Todos os Status' },
-                { id: 'harvested', label: 'Colhido 🌾' },
-                { id: 'distributing', label: 'Em Trânsito 🚚' },
-                { id: 'market', label: 'Mercado 🏪' }
-              ].map(f => (
-                <button
-                  key={f.id}
-                  onClick={() => setStatusFilter(f.id as any)}
-                  className={cn(
-                    "px-4 py-2 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all shrink-0 border",
-                    statusFilter === f.id 
-                      ? "bg-amber-600 text-white border-amber-500 shadow-md" 
-                      : "bg-white text-gray-400 border-[#E5E2D9] hover:border-amber-300 cursor-pointer"
-                  )}
-                >
-                  {f.label}
-                </button>
-              ))}
+            <div className="relative">
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value as any)}
+                className="w-full bg-[#FAF8F5] border border-[#E5E2D9] rounded-2xl py-3.5 pl-4 pr-10 text-[11px] font-bold uppercase tracking-wider text-amber-900 outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all shadow-sm appearance-none cursor-pointer"
+              >
+                <option value="all">Todos os Status</option>
+                <option value="harvested">Colhido 🌾</option>
+                <option value="distributing">Em Trânsito 🚚</option>
+                <option value="market">Mercado 🏪</option>
+              </select>
+              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3.5 text-amber-700">
+                <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
+                  <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" />
+                </svg>
+              </div>
             </div>
           </div>
         </div>
@@ -2874,8 +2827,9 @@ function FarmerPortal({ user, login, logout }: { user: UserProfile | null, login
             <div 
               key={b.batchId} 
               onClick={() => setSelectedBatch(b)}
-              className="bg-white p-5 rounded-[2rem] border border-[#E5E2D9] flex flex-col md:flex-row md:items-center justify-between gap-4 active:scale-[0.99] transition-all cursor-pointer hover:border-emerald-250 hover:shadow-md group relative overflow-hidden pl-6"
+              className="bg-white p-5 rounded-[2rem] border border-[#E5E2D9] hover:border-emerald-300 hover:shadow-md transition-all cursor-pointer group relative overflow-hidden pl-6"
             >
+              {/* Barra de estado na borda esquerda */}
               <div className={cn(
                 "absolute left-0 top-0 bottom-0 w-2 transition-all group-hover:w-2.5",
                 b.status === 'harvested' ? "bg-emerald-500" :
@@ -2883,117 +2837,157 @@ function FarmerPortal({ user, login, logout }: { user: UserProfile | null, login
                 b.status === 'market' ? "bg-blue-500" : "bg-gray-400"
               )} />
 
-              <div className="flex flex-1 items-center justify-between gap-4">
-                <div className="flex items-center gap-4 min-w-0">
-                  {b.photoUrl ? (
-                    <div className="w-14 h-14 rounded-2xl overflow-hidden border border-gray-100 shrink-0 shadow-sm relative group-hover:scale-105 transition-transform">
-                      <img src={b.photoUrl} className="w-full h-full object-cover" alt={b.cropType} referrerPolicy="no-referrer" />
+              {/* Conteúdo Principal do Cartão */}
+              <div className="flex flex-col gap-3.5 text-left">
+                
+                {/* Linha de Cabeçalho: Foto + Título + Status Único */}
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-3.5 min-w-0">
+                    {b.photoUrl ? (
+                      <div className="w-12 h-12 rounded-2xl overflow-hidden border border-gray-150 shrink-0 shadow-sm relative group-hover:scale-105 transition-transform duration-300">
+                        <img src={b.photoUrl} className="w-full h-full object-cover" alt={b.cropType} referrerPolicy="no-referrer" />
+                      </div>
+                    ) : (
+                      <div className="w-12 h-12 bg-emerald-50 text-emerald-700 rounded-2xl flex items-center justify-center border border-emerald-100 shrink-0">
+                        <Leaf className="w-5.5 h-5.5" />
+                      </div>
+                    )}
+                    
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        {b.productType && (
+                          <span className={cn(
+                            "text-[8.5px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md",
+                            b.productType === 'vegetal' ? "bg-emerald-50 text-emerald-700 border border-emerald-100" :
+                            b.productType === 'fruta' ? "bg-amber-50 text-amber-700 border border-amber-100" :
+                            "bg-orange-50 text-orange-800 border border-orange-100"
+                          )}>
+                            {b.productType}
+                          </span>
+                        )}
+                        <span className="text-[10px] font-mono text-gray-400 font-bold">
+                          ID: {b.batchId}
+                        </span>
+                      </div>
+                      
+                      <h4 className="font-extrabold text-[#2C2B29] text-base leading-tight mt-1 truncate group-hover:text-emerald-950 transition-colors">
+                        {b.cropType}
+                      </h4>
                     </div>
-                  ) : (
-                    <div className="w-14 h-14 bg-emerald-50 text-emerald-700 rounded-2xl flex items-center justify-center border border-emerald-100 shrink-0">
-                      <Leaf className="w-6 h-6" />
-                    </div>
-                  )}
-                  <div className="bg-gray-50 p-1 rounded-2xl border border-gray-100 group-hover:bg-emerald-50/50 transition-colors shrink-0">
-                    <QRCodeSVG value={b.batchId} size={42} level="H" />
                   </div>
-                  <div className="min-w-0 space-y-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <h5 className="font-extrabold text-[#2C2B29] text-base group-hover:text-emerald-950 transition-colors truncate">{b.cropType}</h5>
-                      <span className="text-[10px] bg-emerald-50 text-emerald-800 font-extrabold px-3 py-0.5 rounded-full uppercase tracking-tighter">
-                        {b.quantity}
-                      </span>
-                    </div>
-                    <p className="text-[10px] font-mono font-bold text-gray-400 flex items-center gap-1.5 leading-none">
-                      <span className="text-gray-300">ID:</span> {b.batchId}
-                    </p>
-                  </div>
-                </div>
-              </div>
 
-              {/* Supply Chain Progress & Quick Actions */}
-              <div className="flex flex-col md:items-end justify-between gap-3 text-left md:text-right border-t md:border-t-0 border-gray-150 pt-2.5 md:pt-0">
-                {/* Visual supply chain roadmap */}
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  {/* Stage 1: Colhido */}
-                  <div className="flex items-center gap-1.5 bg-gray-50 px-2 py-1 rounded-lg border border-gray-100">
-                    <div className={cn(
-                      "w-2 h-2 rounded-full",
-                      (b.status === 'harvested' || b.status === 'distributing' || b.status === 'market' || b.status === 'consumed') ? "bg-emerald-500 animate-pulse" : "bg-gray-200"
+                  {/* Crachá de Estado Compacto e Focado */}
+                  <span className={cn(
+                    "text-[10px] font-extrabold uppercase tracking-wider px-2.5 py-1 rounded-xl border shadow-sm shrink-0 flex items-center gap-1.5",
+                    b.status === 'harvested' ? "bg-emerald-50 text-emerald-700 border-emerald-200" :
+                    b.status === 'distributing' ? "bg-amber-50 text-amber-700 border-amber-200" :
+                    b.status === 'market' ? "bg-blue-50 text-blue-700 border-blue-200" :
+                    "bg-gray-50 text-gray-500 border-gray-200"
+                  )}>
+                    <span className={cn(
+                      "w-1.5 h-1.5 rounded-full",
+                      b.status === 'harvested' ? "bg-emerald-500 animate-pulse" :
+                      b.status === 'distributing' ? "bg-amber-550 animate-pulse" :
+                      b.status === 'market' ? "bg-blue-500 animate-pulse" : "bg-gray-450"
                     )} />
-                    <span className="text-[9px] font-extrabold uppercase tracking-widest text-[#5C5A54]">Colhido</span>
-                  </div>
-                  <span className="text-gray-300 text-xs hidden md:inline">→</span>
-                  {/* Stage 2: Em Trânsito */}
-                  <div className="flex items-center gap-1.5 bg-gray-50 px-2 py-1 rounded-lg border border-gray-100">
-                    <div className={cn(
-                      "w-2 h-2 rounded-full",
-                      (b.status === 'distributing' || b.status === 'market' || b.status === 'consumed') ? "bg-amber-500 animate-pulse" : "bg-gray-200"
-                    )} />
-                    <span className="text-[9px] font-extrabold uppercase tracking-widest text-[#5C5A54]">Trânsito</span>
-                  </div>
-                  <span className="text-gray-300 text-xs hidden md:inline">→</span>
-                  {/* Stage 3: No Mercado */}
-                  <div className="flex items-center gap-1.5 bg-gray-50 px-2 py-1 rounded-lg border border-gray-100">
-                    <div className={cn(
-                      "w-2 h-2 rounded-full",
-                      (b.status === 'market' || b.status === 'consumed') ? "bg-blue-500 animate-pulse" : "bg-gray-200"
-                    )} />
-                    <span className="text-[9px] font-extrabold uppercase tracking-widest text-[#5C5A54]">No Mercado</span>
-                  </div>
-                </div>
-
-                {/* Instant action button */}
-                <div className="flex items-center gap-3 shrink-0">
-                  {b.status === 'harvested' && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        updateBatchStatus(b.batchId, 'distributing');
-                      }}
-                      className="px-3.5 py-2 bg-amber-500 hover:bg-amber-600 text-white font-extrabold text-[10px] uppercase tracking-wider rounded-xl flex items-center gap-1.5 shadow-md active:scale-95 transition-all text-center border-b-2 border-amber-700"
-                      title="Mudar status para: Em Distribuição"
-                    >
-                      <span>Despachar Lote (Trânsito)</span>
-                      <ArrowRight className="w-3 h-3" />
-                    </button>
-                  )}
-                  {b.status === 'distributing' && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        updateBatchStatus(b.batchId, 'market');
-                      }}
-                      className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-[10px] uppercase tracking-wider rounded-xl flex items-center gap-1.5 shadow-md active:scale-95 transition-all text-center border-b-2 border-blue-800"
-                      title="Mudar status para: No Mercado"
-                    >
-                      <span>Entregar ao Mercado</span>
-                      <ArrowRight className="w-3 h-3" />
-                    </button>
-                  )}
-                  {b.status === 'market' && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        updateBatchStatus(b.batchId, 'consumed');
-                      }}
-                      className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-[10px] uppercase tracking-wider rounded-xl flex items-center gap-1.5 shadow-md active:scale-95 transition-all text-center border-b-2 border-emerald-800"
-                      title="Mudar status para: Finalizado"
-                    >
-                      <span>Finalizar Lote</span>
-                      <Check className="w-3 h-3" />
-                    </button>
-                  )}
-                  {b.status === 'consumed' && (
-                    <span className="text-[10px] font-extrabold text-emerald-600 uppercase tracking-widest flex items-center gap-1.5 bg-emerald-50 border border-emerald-150 px-3 py-1.5 rounded-xl">
-                      <Check className="w-3.5 h-3.5" /> Concluído
+                    <span>
+                      {b.status === 'harvested' ? 'Colhido' :
+                       b.status === 'distributing' ? 'Em Trânsito' :
+                       b.status === 'market' ? 'No Mercado' : 'Concluído'}
                     </span>
-                  )}
-                  
-                  <span className="text-[10px] font-semibold text-gray-450 font-mono">
-                    Colhido: {formatDate(b.harvestDate)}
                   </span>
                 </div>
+
+                {/* Secção de Estatísticas em Grelha Limpa */}
+                <div className="grid grid-cols-2 gap-4 py-3 border-t border-b border-gray-100 my-0.5">
+                  <div>
+                    <span className="block text-[9px] font-extrabold text-gray-400 uppercase tracking-widest">Quantidade</span>
+                    <span className="text-sm font-black text-emerald-950 block mt-0.5">
+                      {b.quantity}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="block text-[9px] font-extrabold text-gray-400 uppercase tracking-widest">Colheita</span>
+                    <span className="text-xs font-bold text-gray-600 block mt-1">
+                      {formatDate(b.harvestDate)}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Linha debaixo: Atalho QR + Botões de Ação */}
+                <div className="flex items-center justify-between gap-3">
+                  
+                  {/* Digitalização de Lote */}
+                  <div className="flex items-center gap-2">
+                    <div className="bg-gray-50 p-1.5 rounded-xl border border-gray-100 shrink-0 group-hover:bg-emerald-50/40 transition-colors">
+                      <QRCodeSVG value={b.batchId} size={32} level="H" />
+                    </div>
+                    <span className="text-[9px] font-mono text-gray-400 leading-tight hidden xs:block">
+                      Rastreio<br />Garantido
+                    </span>
+                  </div>
+
+                  {/* Botões do Lote */}
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedBatch(b);
+                      }}
+                      className="px-3.5 py-2 bg-gray-50 hover:bg-emerald-50 text-[#3C3A34] hover:text-emerald-700 font-extrabold text-[10px] uppercase tracking-wider rounded-xl transition-all border border-gray-150 hover:border-emerald-250 flex items-center gap-1.5 shadow-sm"
+                      title="Gerir lote e ver histórico"
+                    >
+                      <Edit className="w-3.5 h-3.5" />
+                      <span>Gerir</span>
+                    </button>
+
+                    {b.status === 'harvested' && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          updateBatchStatus(b.batchId, 'distributing');
+                        }}
+                        className="px-3.5 py-2 bg-amber-500 hover:bg-amber-600 text-white font-extrabold text-[10px] uppercase tracking-wider rounded-xl flex items-center gap-1.5 shadow-md hover:shadow-lg hover:shadow-amber-500/15 active:scale-95 transition-all text-center border-b-2 border-amber-700"
+                        title="Despachar lote para distribuição"
+                      >
+                        <span>Despachar</span>
+                        <ArrowRight className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                    {b.status === 'distributing' && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          updateBatchStatus(b.batchId, 'market');
+                        }}
+                        className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-[10px] uppercase tracking-wider rounded-xl flex items-center gap-1.5 shadow-md hover:shadow-lg hover:shadow-blue-600/15 active:scale-95 transition-all text-center border-b-2 border-blue-800"
+                        title="Entregar lote ao mercado de destino"
+                      >
+                        <span>Entregar</span>
+                        <ArrowRight className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                    {b.status === 'market' && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          updateBatchStatus(b.batchId, 'consumed');
+                        }}
+                        className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-[10px] uppercase tracking-wider rounded-xl flex items-center gap-1.5 shadow-md hover:shadow-lg hover:shadow-emerald-600/15 active:scale-95 transition-all text-center border-b-2 border-emerald-800"
+                        title="Concluir vendas deste lote"
+                      >
+                        <span>Concluir</span>
+                        <Check className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+
+                </div>
+
               </div>
             </div>
           ))}
