@@ -800,7 +800,7 @@ export default function App() {
           <div className="absolute bottom-1 w-32 h-1.5 bg-black/10 rounded-full left-1/2 -translate-x-1/2 z-[60] pointer-events-none hidden md:block"></div>
 
           {/* Bottom Navigation */}
-          <nav className="absolute bottom-6 left-6 right-6 bg-emerald-950/95 backdrop-blur-xl rounded-[2.5rem] p-4 flex items-center justify-between shadow-2xl z-50 border border-white/10">
+          <nav className="absolute bottom-6 left-6 right-6 bg-emerald-950/95 backdrop-blur-xl rounded-[2.5rem] p-4 flex items-center justify-around shadow-2xl z-50 border border-white/10">
             <NavTab 
               active={activeTab === 'consumer' && subTab === 'home'} 
               icon={Home} 
@@ -814,25 +814,13 @@ export default function App() {
               onClick={() => { setActiveTab('consumer'); setSubTab('map'); }} 
             />
             
-            {/* Central Primary Action */}
-            <div className="relative">
-              <button 
-                onClick={() => { setActiveTab('consumer'); setSubTab('scan'); }}
-                className="w-16 h-16 bg-emerald-500 rounded-3xl flex items-center justify-center -mt-12 shadow-xl shadow-emerald-500/30 border-[6px] border-[#FDFCF9] group active:scale-90 transition-transform"
-              >
-                <QrCode className="w-8 h-8 text-white group-hover:rotate-12 transition-transform" />
-              </button>
-            </div>
-
-            {user?.role === 'farmer' ? (
+            {user?.role === 'farmer' && (
               <NavTab 
                 active={activeTab === 'farmer'} 
                 icon={ShieldCheck} 
                 label="Painel"
                 onClick={() => setActiveTab('farmer')} 
               />
-            ) : (
-              <div className="w-12 h-10 shrink-0" />
             )}
             <NavTab 
               active={activeTab === 'consumer' && subTab === 'trace' && !!scannedBatch} 
@@ -1183,7 +1171,7 @@ function HomeView({ onExplore, onSelectBatch }: { onExplore: () => void, onSelec
                 {/* Certification indicator */}
                 <div className="mt-1.5">
                   {f.certificationStatus === 'certified' ? (
-                    <span className="text-[7px] font-black bg-yellow-100 text-yellow-800 px-1 py-0.5 rounded-md uppercase tracking-wider">GAP Certificado</span>
+                    <span className="text-[7px] font-black bg-yellow-105 text-yellow-800 px-1 py-0.5 rounded-md uppercase tracking-wider">GAP Certificado</span>
                   ) : (
                     <span className="text-[7px] font-medium bg-gray-100 text-gray-500 px-1 py-0.5 rounded-md uppercase tracking-wider">Registado</span>
                   )}
@@ -1196,62 +1184,32 @@ function HomeView({ onExplore, onSelectBatch }: { onExplore: () => void, onSelec
 
       {/* Live Filtering & Search */}
       <section className="space-y-4" id="live-search-filter-section">
-        <div className="relative">
-          <input 
-            id="browse-lots-search-input"
-            type="text"
-            className="w-full bg-white border border-[#E5E2D9] rounded-2xl p-4 pl-12 text-[#2C2B29] text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:border-transparent transition-all shadow-sm"
-            placeholder="Pesquisar cultivo, ID do lote ou produtor..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
-          <Search className="w-4 h-4 text-[#8C8A84] absolute left-4 top-1/2 -translate-y-1/2" />
-          {searchQuery && (
-            <button 
-              id="clear-search-btn"
-              onClick={() => setSearchQuery('')}
-              className="absolute right-4 top-1/2 -translate-y-1/2 text-[10px] font-bold text-red-500 hover:text-red-700 bg-red-50 px-2 py-0.5 rounded"
-            >
-              Limpar
-            </button>
-          )}
-        </div>
-
-        {/* Active Category Tabs */}
-        <div className="flex items-center gap-2 overflow-x-auto pb-1.5 invisible-scrollbar" id="category-scroller-tabs">
-          {[
-            { id: 'all', label: 'Todos', icon: Filter, colorClass: 'text-gray-500' },
-            { id: 'vegetal', label: 'Vegetais', icon: Leaf, colorClass: 'text-emerald-500' },
-            { id: 'fruta', label: 'Frutas', icon: Sparkles, colorClass: 'text-amber-500' },
-            { id: 'grão', label: 'Grãos', icon: ShieldCheck, colorClass: 'text-yellow-600' }
-          ].map(tab => {
-            const IconComponent = tab.icon;
-            const isActive = selectedCategory === tab.id;
-            return (
-              <button
-                id={`cat-tab-button-${tab.id}`}
-                key={tab.id}
-                onClick={() => setSelectedCategory(tab.id as any)}
-                className={cn(
-                  "flex items-center gap-2 px-4 py-3 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all duration-200 border shrink-0 active:scale-95",
-                  isActive 
-                    ? "bg-emerald-900 border-emerald-950 text-white shadow-md shadow-emerald-950/10" 
-                    : "bg-white hover:bg-gray-50 border-[#E5E2D9] text-[#5C5A54]"
-                )}
-              >
-                <IconComponent className={cn("w-3.5 h-3.5", isActive ? "text-white" : tab.colorClass)} />
-                {tab.label}
-              </button>
-            );
-          })}
+        {/* Categorias Dropdown as single filter */}
+        <div className="relative" id="home-category-dropdown">
+          <select
+            id="category-select-dropdown"
+            value={selectedCategory}
+            onChange={(e) => setSelectedCategory(e.target.value as any)}
+            className="w-full bg-[#FAF8F5] border border-[#E5E2D9] p-3.5 pl-4 pr-10 rounded-2xl text-[11px] font-extrabold uppercase tracking-wide text-emerald-900 outline-none focus:ring-2 focus:ring-emerald-600 focus:border-transparent transition-all shadow-sm appearance-none cursor-pointer"
+          >
+            <option value="all">Todas as Categorias de Alimentos</option>
+            <option value="vegetal">Vegetais 🥦</option>
+            <option value="fruta">Frutas 🍎</option>
+            <option value="grão">Grãos 🌾</option>
+          </select>
+          <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3.5 text-emerald-700">
+            <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
+              <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" />
+            </svg>
+          </div>
         </div>
 
         {/* Real-Time Status Filter Pills */}
         <div className="flex items-center gap-1.5 bg-gray-150/70 p-1 rounded-2xl w-full max-w-sm" id="status-quick-pills">
           {[
             { id: 'all', label: 'Todos os Lotes' },
-            { id: 'market', label: 'Disponíveis no Mercado 🏪' },
-            { id: 'distributing', label: 'Em Trânsito 🚚' }
+            { id: 'market', label: 'Disponíveis no Mercado' },
+            { id: 'distributing', label: 'Em Trânsito' }
           ].map(pill => {
             const isSelected = selectedStatus === pill.id;
             return (
@@ -1277,7 +1235,7 @@ function HomeView({ onExplore, onSelectBatch }: { onExplore: () => void, onSelec
       <section className="space-y-4" id="recent-lots-list-section">
         <div className="flex items-center justify-between">
            <h4 className="font-extrabold text-sm text-emerald-950 uppercase tracking-widest leading-none">
-             {selectedStatus === 'market' ? 'Lotes no Mercado 🏪' : selectedStatus === 'distributing' ? 'Lotes em Trânsito 🚚' : 'Lotes Disponíveis'}
+             {selectedStatus === 'market' ? 'Lotes no Mercado' : selectedStatus === 'distributing' ? 'Lotes em Trânsito' : 'Lotes Disponíveis'}
            </h4>
            <span className="text-[10px] bg-emerald-50 text-emerald-800 border border-emerald-100 font-bold px-3 py-1 rounded-full uppercase">
              {filteredBatches.length} Encontrados
@@ -2418,7 +2376,7 @@ function CameraCaptureModal({
 function PhotoActionModal({ isOpen, onClose, onSelectUpload, onSelectCamera, onRemovePhoto, hasPhoto }: any) {
   if (!isOpen) return null;
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[110] flex items-center justify-center p-4">
       <motion.div 
         initial={{ scale: 0.95, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
@@ -2760,14 +2718,14 @@ function FarmerPortal({ user, login, logout }: { user: UserProfile | null, login
              <span>Adicionar Novo Lote</span>
            </button>
         </div>
- 
+
         {/* Search & Filter Container */}
         <div className="space-y-3.5">
           <div className="relative">
             <Search className="w-5 h-5 text-gray-400 absolute left-4.5 top-1/2 -translate-y-1/2" />
             <input 
               type="text" 
-              placeholder="Pesquisar por tipo de cultivo ou ID do lote (Ex: Milho, Manga, BATCH)..."
+              placeholder="Pesquisar por ID do lote (Ex: BATCH)..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full bg-white border border-[#E5E2D9] rounded-2xl py-4 pl-12 pr-12 text-sm outline-none focus:ring-2 focus:ring-emerald-600 focus:border-transparent transition-all shadow-sm font-medium"
@@ -2809,9 +2767,9 @@ function FarmerPortal({ user, login, logout }: { user: UserProfile | null, login
                 className="w-full bg-[#FAF8F5] border border-[#E5E2D9] rounded-2xl py-3.5 pl-4 pr-10 text-[11px] font-bold uppercase tracking-wider text-amber-900 outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all shadow-sm appearance-none cursor-pointer"
               >
                 <option value="all">Todos os Status</option>
-                <option value="harvested">Colhido 🌾</option>
-                <option value="distributing">Em Trânsito 🚚</option>
-                <option value="market">Mercado 🏪</option>
+                <option value="harvested">Colhido</option>
+                <option value="distributing">Em Trânsito</option>
+                <option value="market">Mercado</option>
               </select>
               <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3.5 text-amber-700">
                 <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
@@ -3726,7 +3684,7 @@ function EditProfileModal({ farmer, userId, onClose, onSave, onDeleteAccount }: 
   };
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
       <motion.div 
         initial={{ scale: 0.9, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
@@ -3885,7 +3843,7 @@ function EditProfileModal({ farmer, userId, onClose, onSave, onDeleteAccount }: 
             <div className="pt-4 border-t border-red-100 bg-red-50/40 p-4 rounded-2xl border border-red-100/50 space-y-3 text-left">
               <div className="flex items-center gap-2">
                 <Trash2 className="w-4 h-4 text-red-600 shrink-0" />
-                <span className="text-[10px] font-black text-red-850 uppercase tracking-widest">Zona de Perigo</span>
+                <span className="text-[10px] font-black text-red-850 uppercase tracking-widest">Deseja apagar a sua conta?</span>
               </div>
               <p className="text-[10.5px] text-red-700/80 leading-relaxed">
                 Se não pretender continuar a fazer parte do AgroTrace, pode eliminar a sua conta de produtor de forma permanente.
