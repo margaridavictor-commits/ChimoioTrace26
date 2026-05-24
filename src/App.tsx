@@ -33,7 +33,8 @@ import {
   Globe,
   Wifi,
   WifiOff,
-  RefreshCw
+  RefreshCw,
+  Share2
 } from 'lucide-react';
 import { cn, formatDate } from './lib/utils';
 import { auth, db } from './lib/firebase';
@@ -55,6 +56,7 @@ import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import type { UserProfile, Batch, Farmer } from './types';
 import { getDocFromServer } from 'firebase/firestore';
 import { storage } from './lib/firebase';
+import NetworkGraphView from './components/NetworkGraphView';
 
 enum OperationType {
   CREATE = 'create',
@@ -304,7 +306,7 @@ export default function App() {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab ] = useState<'consumer' | 'farmer'>('consumer');
-  const [subTab, setSubTab] = useState<'home' | 'map' | 'scan' | 'trace'>('home');
+  const [subTab, setSubTab] = useState<'home' | 'map' | 'scan' | 'trace' | 'network'>('home');
   const [view, setView] = useState<'landing' | 'app'>('landing');
   const [authMode, setAuthMode] = useState<'options' | 'login' | 'register'>('options');
   const [lang] = useState<'pt' | 'en'>('pt');
@@ -727,7 +729,7 @@ export default function App() {
                   <div className="flex items-center gap-2">
                     <Data4MozLogo className="w-4 h-4 mt-0.5" />
                     <h1 className="font-bold text-lg tracking-tight leading-none text-emerald-900">
-                      {activeTab === 'consumer' ? (subTab === 'home' ? 'AgroTrace' : subTab === 'map' ? 'Explorar' : subTab === 'scan' ? 'Scanner' : 'Rastreio') : 'Portal Produtor'}
+                      {activeTab === 'consumer' ? (subTab === 'home' ? 'AgroTrace' : subTab === 'map' ? 'Explorar' : subTab === 'network' ? 'Ecossistema de Produção' : subTab === 'scan' ? 'Scanner' : 'Rastreio') : 'Portal Produtor'}
                     </h1>
                     {!isOnline && (
                       <div className="flex items-center gap-1 bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-full text-[9px] font-bold tracking-wide uppercase ml-2 animate-pulse" title="Ligação perdida. Os dados exibidos estão em cache e podem não ser em tempo real.">
@@ -783,9 +785,11 @@ export default function App() {
                       <HomeView 
                         onExplore={() => setSubTab('map')} 
                         onSelectBatch={(b) => { setScannedBatch(b); setSubTab('trace'); }} 
+                        onViewNetwork={() => setSubTab('network')}
                       />
                     )}
                     {subTab === 'map' && <GlobalMapView onSelectBatch={(b) => { setScannedBatch(b); setSubTab('trace'); }} />}
+                    {subTab === 'network' && <NetworkGraphView />}
                     {subTab === 'scan' && <ScanView onResult={(batch) => { setScannedBatch(batch); setSubTab('trace'); }} />}
                     {subTab === 'trace' && <TraceView scannedBatch={scannedBatch} forceSingleColumn={true} />}
                   </div>
@@ -812,6 +816,12 @@ export default function App() {
               icon={MapPin} 
               label="Mapa"
               onClick={() => { setActiveTab('consumer'); setSubTab('map'); }} 
+            />
+            <NavTab 
+              active={activeTab === 'consumer' && subTab === 'network'} 
+              icon={Share2} 
+              label="Rede"
+              onClick={() => { setActiveTab('consumer'); setSubTab('network'); }} 
             />
             
             {user?.role === 'farmer' && (
@@ -880,7 +890,7 @@ export default function App() {
   );
 }
 
-function HomeView({ onExplore, onSelectBatch }: { onExplore: () => void, onSelectBatch: (b: Batch) => void }) {
+function HomeView({ onExplore, onSelectBatch, onViewNetwork }: { onExplore: () => void, onSelectBatch: (b: Batch) => void, onViewNetwork: () => void }) {
   const [batches, setBatches] = useState<Batch[]>([]);
   const [farmers, setFarmers] = useState<Record<string, Farmer>>({});
   const [selectedCategory, setSelectedCategory] = useState<'all' | 'vegetal' | 'fruta' | 'grão'>('all');
@@ -1015,80 +1025,115 @@ function HomeView({ onExplore, onSelectBatch }: { onExplore: () => void, onSelec
         <p className="text-xs text-[#7C7A74] font-semibold tracking-wide uppercase">Moçambique • AgroTrace Rastreabilidade</p>
       </section>
 
-      {/* Main Premium Banner */}
-      <section className="relative overflow-hidden group shadow-md rounded-[2.5rem]" id="showcase-banner">
-        <div className="absolute inset-0 bg-gradient-to-t from-emerald-950/90 via-emerald-950/40 to-transparent z-10 rounded-[2.5rem]"></div>
+      {/* Main Premium Banner - Redesigned as a resilient flexbox-directed container */}
+      <section className="relative overflow-hidden group shadow-md rounded-[2rem] flex flex-col justify-between min-h-[21rem] md:min-h-[23rem]" id="showcase-banner">
+        {/* Fully responsive absolute layout cover picture */}
         <img 
           src="https://images.unsplash.com/photo-1592982537447-7440770cbfc9?auto=format&fit=crop&q=80&w=1200" 
           alt="Agriculture" 
-          className="w-full h-72 object-cover rounded-[2.5rem] group-hover:scale-105 transition-transform duration-700"
+          className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
         />
+        {/* Deep, rich gradient cover ensuring full readability across text blocks */}
+        <div className="absolute inset-0 bg-gradient-to-t from-emerald-950/95 via-emerald-950/50 to-transparent z-10"></div>
         
-        {/* Beautiful Floating Sticker / Seal of Authenticity as requested ("use another sticker") */}
-        <div className="absolute top-4 right-4 z-20 bg-amber-400 text-emerald-950 p-3.5 rounded-full flex flex-col items-center justify-center border-2 border-dashed border-amber-600 shadow-xl select-none rotate-12 scale-90 sm:scale-100 hover:rotate-6 transition-transform duration-300 w-24 h-24 text-center">
-          <Globe className="w-5 h-5 text-emerald-900 mb-1 animate-pulse" />
-          <span className="text-[8px] font-black tracking-tighter uppercase leading-none text-emerald-950">100% Rastreável</span>
-          <span className="text-[6px] font-bold tracking-tight uppercase text-emerald-900 leading-none mt-0.5">Moçambique</span>
+        {/* Top interactive row containing certifications and the compact floating sticker */}
+        <div className="relative z-20 p-4 sm:p-6 flex justify-between items-start w-full gap-4">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/30 backdrop-blur-md text-white border border-white/20 text-[9px] font-bold uppercase tracking-wider">
+            <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" /> Global GAP Moçambique
+          </div>
+          
+          {/* Resolute, elegant and non-crowding floating sticker */}
+          <div className="bg-amber-400 text-emerald-950 p-2 sm:p-2.5 rounded-full flex flex-col items-center justify-center border border-dashed border-amber-600 shadow-xl select-none rotate-12 scale-95 sm:scale-100 hover:rotate-6 transition-all duration-300 w-16 h-16 sm:w-20 sm:h-20 text-center shrink-0">
+            <Globe className="w-3.5 h-3.5 text-emerald-900 mb-0.5" />
+            <span className="text-[7px] sm:text-[8px] font-black tracking-tighter uppercase leading-none text-emerald-950">100% Rastreável</span>
+            <span className="text-[5.5px] sm:text-[6px] font-bold tracking-tight uppercase text-emerald-900 leading-none mt-0.5">Moçambique</span>
+          </div>
         </div>
 
-        <div className="absolute bottom-6 left-6 right-6 z-20 space-y-3">
-           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/30 backdrop-blur-md text-white border border-white/20 text-[9px] font-bold uppercase tracking-wider">
-             <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" /> Global GAP Moçambique
-           </div>
-           <h3 className="text-xl sm:text-2xl font-bold text-white leading-tight">Segurança Alimentar e Rastreio Total do Produtor à Mesa</h3>
-           <p className="text-emerald-100/80 text-[11px] max-w-sm hidden sm:block">A tecnologia blockchain e de registos distribuídos garante que a integridade deste alimento nunca seja comprometida.</p>
-           <button 
-             id="explore_all_producers_btn"
-             onClick={onExplore}
-             className="bg-white hover:bg-emerald-50 text-emerald-900 px-5 py-2.5 rounded-xl font-bold text-[10px] uppercase tracking-wider active:scale-95 transition-all shadow-md flex items-center gap-1.5"
-           >
-             <MapPin className="w-3.5 h-3.5 text-emerald-600" /> Explorar no Mapa
-           </button>
-         </div>
+        {/* Bottom descriptive and CTA action row */}
+        <div className="relative z-20 p-5 sm:p-6 pt-0 space-y-3 mt-auto w-full">
+          <h3 className="text-lg sm:text-2xl font-bold text-white leading-snug tracking-tight">
+            Segurança Alimentar e Rastreio Total do Produtor à Mesa
+          </h3>
+          <p className="text-emerald-100/90 text-[10px] sm:text-xs max-w-sm leading-normal">
+            A tecnologia blockchain e de registos distribuídos garante que a integridade deste alimento nunca seja comprometida.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-2 pt-1">
+             <button 
+               id="explore_all_producers_btn"
+               onClick={onExplore}
+               className="w-full sm:w-auto bg-white hover:bg-emerald-50 text-emerald-900 px-4 py-2.5 rounded-xl font-bold text-[10px] uppercase tracking-wider active:scale-95 transition-all shadow-md flex items-center justify-center gap-1.5 cursor-pointer h-10"
+             >
+               <MapPin className="w-3.5 h-3.5 text-emerald-600 shrink-0" /> Explorar no Mapa
+             </button>
+             <button 
+               id="view_ecosystem_network_btn"
+               onClick={onViewNetwork}
+               className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl font-bold text-[10px] uppercase tracking-wider active:scale-95 transition-all shadow-md flex items-center justify-center gap-1.5 cursor-pointer h-10"
+             >
+               <Share2 className="w-3.5 h-3.5 text-white animate-pulse shrink-0" /> Ver Ecossistema de Produção
+             </button>
+          </div>
+        </div>
       </section>
 
-      {/* Real-time Dynamic Stats */}
-      <section className="grid grid-cols-2 xs:grid-cols-4 gap-4" id="home-stats-counters">
-        <div className="bg-white p-4.5 rounded-3xl border border-[#E5E2D9] shadow-sm flex items-center gap-3.5 hover:border-emerald-500/20 transition-all">
-          <div className="w-11 h-11 bg-emerald-50 rounded-2xl flex items-center justify-center shrink-0 border border-emerald-100">
-            <User className="w-5 h-5 text-emerald-600" />
+      {/* Real-time Dynamic Stats - Reorganized into beautiful, highly resilient Bento Grid blocks to prevent any overlapping on small screens */}
+      <section className="grid grid-cols-2 gap-3" id="home-stats-counters">
+        {/* Card 1: Produtores */}
+        <div className="bg-white p-3.5 rounded-2xl border border-[#E5E2D9] shadow-sm flex flex-col justify-between hover:border-emerald-500/20 hover:shadow-md transition-all h-[92px]">
+          <div className="flex items-center justify-between w-full">
+            <div className="w-8 h-8 bg-emerald-50 rounded-xl flex items-center justify-center border border-emerald-100 shrink-0">
+              <User className="w-4 h-4 text-emerald-600" />
+            </div>
+            <span className="text-[7.5px] font-black bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded-md uppercase tracking-wider leading-none">Ao Vivo</span>
           </div>
-          <div>
-            <p className="text-[9px] uppercase font-bold text-[#8C8A84] tracking-wider leading-none mb-1">PRODUTORES</p>
-            <h4 className="text-xl font-black text-emerald-950 leading-tight">{Object.keys(farmers).length}</h4>
-            <span className="text-[8px] text-emerald-600 font-bold block leading-none">Ao vivo</span>
-          </div>
-        </div>
-        <div className="bg-white p-4.5 rounded-3xl border border-[#E5E2D9] shadow-sm flex items-center gap-3.5 hover:border-emerald-500/20 transition-all">
-          <div className="w-11 h-11 bg-amber-50 rounded-2xl flex items-center justify-center shrink-0 border border-amber-100">
-            <Globe className="w-5 h-5 text-amber-600 animate-pulse" />
-          </div>
-          <div>
-            <p className="text-[9px] uppercase font-bold text-[#8C8A84] tracking-wider leading-none mb-1">NO MERCADO</p>
-            <h4 className="text-xl font-black text-emerald-950 leading-tight">{batches.filter(b => b.status === 'market').length}</h4>
-            <span className="text-[8px] text-amber-600 font-bold block leading-none">Lotes Ativos</span>
+          <div className="mt-2 text-left">
+            <h4 className="text-lg font-black text-emerald-950 leading-none mb-0.5">{Object.keys(farmers).length}</h4>
+            <p className="text-[8px] uppercase font-bold text-[#8C8A84] tracking-wider leading-none">PRODUTORES</p>
           </div>
         </div>
-        <div className="bg-white p-4.5 rounded-3xl border border-[#E5E2D9] shadow-sm flex items-center gap-3.5 hover:border-emerald-500/20 transition-all">
-          <div className="w-11 h-11 bg-indigo-50 rounded-2xl flex items-center justify-center shrink-0 border border-indigo-100">
-            <History className="w-5 h-5 text-indigo-600" />
+
+        {/* Card 2: No Mercado */}
+        <div className="bg-white p-3.5 rounded-2xl border border-[#E5E2D9] shadow-sm flex flex-col justify-between hover:border-emerald-500/20 hover:shadow-md transition-all h-[92px]">
+          <div className="flex items-center justify-between w-full">
+            <div className="w-8 h-8 bg-amber-50 rounded-xl flex items-center justify-center border border-amber-100 shrink-0">
+              <Globe className="w-4 h-4 text-amber-600 animate-pulse" />
+            </div>
+            <span className="text-[7.5px] font-black bg-amber-50 text-amber-700 px-1.5 py-0.5 rounded-md uppercase tracking-wider leading-none">Ativos</span>
           </div>
-          <div>
-            <p className="text-[9px] uppercase font-bold text-[#8C8A84] tracking-wider leading-none mb-1">EM TRÂNSITO</p>
-            <h4 className="text-xl font-black text-emerald-950 leading-tight">{batches.filter(b => b.status === 'distributing').length}</h4>
-            <span className="text-[8px] text-indigo-600 font-bold block leading-none">Na Estrada</span>
+          <div className="mt-2 text-left">
+            <h4 className="text-lg font-black text-emerald-950 leading-none mb-0.5">{batches.filter(b => b.status === 'market').length}</h4>
+            <p className="text-[8px] uppercase font-bold text-[#8C8A84] tracking-wider leading-none">NO MERCADO</p>
           </div>
         </div>
-        <div className="bg-white p-4.5 rounded-3xl border border-[#E5E2D9] shadow-sm flex items-center gap-3.5 hover:border-emerald-500/20 transition-all">
-          <div className="w-11 h-11 bg-yellow-50 rounded-2xl flex items-center justify-center shrink-0 border border-yellow-105">
-            <ShieldCheck className="w-5 h-5 text-yellow-600" />
+
+        {/* Card 3: Em Trânsito */}
+        <div className="bg-white p-3.5 rounded-2xl border border-[#E5E2D9] shadow-sm flex flex-col justify-between hover:border-emerald-500/20 hover:shadow-md transition-all h-[92px]">
+          <div className="flex items-center justify-between w-full">
+            <div className="w-8 h-8 bg-indigo-50 rounded-xl flex items-center justify-center border border-indigo-100 shrink-0">
+              <History className="w-4 h-4 text-indigo-600" />
+            </div>
+            <span className="text-[7.5px] font-black bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded-md uppercase tracking-wider leading-none">Na Estrada</span>
           </div>
-          <div>
-            <p className="text-[9px] uppercase font-bold text-[#8C8A84] tracking-wider leading-none mb-1">CERTIFICADOS</p>
-            <h4 className="text-xl font-black text-emerald-950 leading-tight">
+          <div className="mt-2 text-left">
+            <h4 className="text-lg font-black text-emerald-950 leading-none mb-0.5">{batches.filter(b => b.status === 'distributing').length}</h4>
+            <p className="text-[8px] uppercase font-bold text-[#8C8A84] tracking-wider leading-none">EM TRÂNSITO</p>
+          </div>
+        </div>
+
+        {/* Card 4: Certificados */}
+        <div className="bg-white p-3.5 rounded-2xl border border-[#E5E2D9] shadow-sm flex flex-col justify-between hover:border-emerald-500/20 hover:shadow-md transition-all h-[92px]">
+          <div className="flex items-center justify-between w-full">
+            <div className="w-8 h-8 bg-yellow-50 rounded-xl flex items-center justify-center border border-yellow-100 shrink-0">
+              <ShieldCheck className="w-4 h-4 text-yellow-600" />
+            </div>
+            <span className="text-[7.5px] font-black bg-yellow-50 text-yellow-700 px-1.5 py-0.5 rounded-md uppercase tracking-wider leading-none">Selo GAP</span>
+          </div>
+          <div className="mt-2 text-left">
+            <h4 className="text-lg font-black text-emerald-950 leading-none mb-0.5">
               {Object.values(farmers).filter(f => f.certificationStatus === 'certified').length}
             </h4>
-            <span className="text-[8px] text-yellow-650 font-bold block leading-none">Selo GAP</span>
+            <p className="text-[8px] uppercase font-bold text-[#8C8A84] tracking-wider leading-none">CERTIFICADOS</p>
           </div>
         </div>
       </section>
